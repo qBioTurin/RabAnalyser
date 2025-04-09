@@ -256,7 +256,7 @@ server <- function(input, output, session) {
         rename(median1 = median_val) %>%
         left_join(cluster_medians, by = c("group2" = "cluster")) %>%
         rename(median2 = median_val) %>%
-        mutate(Median_Diff = abs(median1 - median2))  # Compute absolute median difference
+        mutate(Median_Diff = abs(median1 - median2) ) # Compute absolute median difference
 
       output$singleCNCTN_Stattest <- renderTable({
         test_results[,-1]
@@ -274,13 +274,70 @@ server <- function(input, output, session) {
               y = !!sym(input$singleCNCTN_ViolinColor),
               col=cluster,
               fill =cluster), alpha = 0.5) +
-        ggtitle("UMAP Data Visualization") +
+        ggtitle(paste0("Violin Plot of", feature , "Across Clusters") )+
         scale_color_viridis_d()+
         scale_fill_viridis_d()+
         theme_minimal()
 
       output$singleCNCTN_ClusterViolinplot <- renderPlot({
         singleCNCTN_results$violinPlot
+      })
+    })
+
+  })
+
+  observe({
+    WholeData = cbind(req(singleCNCTN_results$clustering$dataClustered),
+                      req(singleCNCTN_results$FilteredData) )
+    isolate({
+      lapply(colnames(singleCNCTN_results$FilteredData), function(feature) {
+        #### STATISTICAL TEST ####
+        # Perform pairwise Wilcoxon test (Mann-Whitney U test)
+        test_results <- WholeData %>%
+          rstatix::wilcox_test(as.formula(paste(feature, "~ cluster"))) %>%
+          rstatix::adjust_pvalue(method = "bonferroni") %>% # Adjust for multiple testing
+          mutate(Significant = ifelse(p.adj < 0.05, "*", "ns"))  # Mark significance
+
+        # Compute median differences for each pair
+        cluster_medians <- WholeData %>%
+          group_by(cluster) %>%
+          summarise(median_val = median(!!sym(feature)))
+
+        test_results <- test_results %>%
+          left_join(cluster_medians, by = c("group1" = "cluster")) %>%
+          rename(median1 = median_val) %>%
+          left_join(cluster_medians, by = c("group2" = "cluster")) %>%
+          rename(median2 = median_val) %>%
+          mutate(Fold_Change = abs(median1/median2) )
+
+        SM_final <- test_results %>%
+          mutate(Size = ifelse(p.adj <= 0.05, pmin(-log10(p.adj), 20), NA))
+
+        SM_final$Color <- scales::col_numeric(
+          palette = colorRampPalette(c("#997FD2", "#F3A341"))(100),
+          domain = range(SM_final$Fold_Change, na.rm = TRUE)
+        )(SM_final$Fold_Change)
+        SM_final$Feature = feature
+
+        SM_final$Cluster_pairs = paste0(SM_final$group1," vs ",SM_final$group2)
+        SM_final
+      }) -> StatList
+
+      SM_final = do.call(rbind, StatList)
+
+      singleCNCTN_results$FoldChangePlot = ggplot(SM_final, aes(y = Cluster_pairs, x = Feature)) +
+        geom_point(aes(size = Size, fill = Fold_Change),
+                   shape = 21, stroke = 0.5, alpha = 0.75) +
+        scale_size_continuous(range = c(5, 20)) +
+        scale_fill_gradientn(colors = c("#997FD2", "#F3A341"), limits = c(0, max(SM_final$Fold_Change))) +
+        labs(y = "Cluster Pairs", x = "Feature",
+             fill = "Fold Change Median", size = "-log10(p)",
+             title = "Fold Change & p-value") +
+        theme_minimal() +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
+
+      output$singleCNCTN_FoldChangePlot <- renderPlot({
+        singleCNCTN_results$FoldChangePlot
       })
     })
 
@@ -386,7 +443,8 @@ server <- function(input, output, session) {
         ImportancePLot = ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
           geom_bar(stat = "identity", fill = "darkgreen") +
           coord_flip() +
-          labs(x = "Feature", y = "Feature importance (Decreasing Gini Index)") +
+          labs(x = "Feature", y = "Feature importance (Decreasing Gini Index)",
+               title = "Feature Importance") +
           theme_minimal()+
           lims(y = c(0,1) )
 
@@ -424,6 +482,7 @@ server <- function(input, output, session) {
     })
 
   })
+
   # Call these functions for each plot
   ##### UMAP Plot Edit #####
 

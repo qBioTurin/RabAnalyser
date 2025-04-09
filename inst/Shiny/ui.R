@@ -22,6 +22,10 @@ library(shinybusy)
 library(randomForest)
 library(caret)
 library(pheatmap)
+library(clusterCrit)
+library(leiden)
+library(dbscan)
+library(RANN)
 
 featureFile = system.file("Docker/PythonScripts","featurespython2.xlsx", package = "RabAnalyser")
 featurespython2 <- read_excel(featureFile)
@@ -163,6 +167,11 @@ overflow-y:scroll; max-height: 250px; background: ghostwhite;}"))
       tableOutput("singleCNCTN_Stattest")
     )
   ),
+  "singleCNCTN_FoldChangePval" = card(
+    fluidRow(
+      plotOutput("singleCNCTN_FoldChangePlot", height = "600px")
+    )
+  ),
   "singleCNCTN_featureSelection" = card(
     fluidRow(
       plotOutput("singleCNCTN_FeaturePlot", height = "600px")
@@ -194,8 +203,9 @@ ui <- page_navbar(
   nav_panel("SC_singleCNCTN", value = 3,
             fluidRow(column(12,cards$singleCNCTN_Load)),
             fluidRow(column(12,cards$singleCNCTN_CorrMat)),
-            fluidRow(column(6,cards$singleCNCTN_Cluster,cards$singleCNCTN_clustviolin),
-                     column(6,cards$singleCNCTN_UMAP, cards$singleCNCTN_featureSelection)),
+            fluidRow(column(12,cards$singleCNCTN_Cluster) ),
+            fluidRow(column(6,cards$singleCNCTN_UMAP),column(6,cards$singleCNCTN_clustviolin) ),
+            fluidRow(column(6,cards$singleCNCTN_FoldChangePval), column(6,cards$singleCNCTN_featureSelection) ),
             fluidRow(column(12,cards$singleCNCTN_SubPop))
   ),
   nav_item(tags$a("Github Link", href = "https://google.it"))
