@@ -26,7 +26,7 @@ library(writexl)
 # library(dbscan)
 # library(RANN)
 
-featureFile = system.file("inst/Shiny/files","featurespython2.xlsx", package = "RabAnalyser")
+featureFile = system.file("Shiny/files","featurespython2.xlsx", package = "RabAnalyser")
 #featureFile = "files/featurespython2.xlsx"
 
 featurespython2 <- read_excel(featureFile)

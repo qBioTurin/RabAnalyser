@@ -20,8 +20,8 @@ rabanalyser.run <-function()
 {
   x = T
 
-  Appui <- system.file("inst/Shiny","ui.R", package = "RabAnalyser")
-  Appserver <- system.file("inst/Shiny","server.R", package = "RabAnalyser")
+  Appui <- system.file("Shiny","ui.R", package = "RabAnalyser")
+  Appserver <- system.file("Shiny","server.R", package = "RabAnalyser")
 
   source(Appui)
   source(Appserver)
