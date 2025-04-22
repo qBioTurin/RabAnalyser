@@ -6,8 +6,8 @@
 To install RabAnalyser, you can use **devtools**:
 
 ```r
-install.packages("devtools")
-devtools::install_github("qBioTurin/rabanalyser", ref="main", dependencies=TRUE)
+install.packages("remotes")
+remotes::install_github("qBioTurin/RabAnalyser", ref="main", dependencies=TRUE)
 ```
 
 ## How to Run
