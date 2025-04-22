@@ -5,6 +5,7 @@ import numpy as np
 import MyFunctions2 as F 
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
+from sklearn.model_selection import train_test_split
 import seaborn as sns
 import umap
 from sklearn.ensemble import RandomForestClassifier
@@ -13,6 +14,10 @@ from sklearn.preprocessing import LabelBinarizer
 from itertools import combinations
 from scipy.stats import mannwhitneyu
 from statsmodels.stats.multitest import multipletests
+import sys
+
+sys.path.append('PythonScripts')
+import MyFunctions2 as F 
 
 """
 This script analyse the data matrix obtained by the
@@ -80,9 +85,9 @@ plt.tight_layout()
 
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/allTRTDRab5UMAP.svg',transparent=True)
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/allTRTDRab5UMAP.pdf')
-#plt.savefig('C:/Users/E14Ge/Desktop/Data_results/allTRTDRab5UMAP.png',dpi=600)
+plt.savefig('/Users/simonepernice/Desktop/res/allTRTDRab5UMAP.png',dpi=600)
 
-plt.show()
+# plt.show()
 
 
 # compute the correlation matrix of the original features
@@ -109,9 +114,9 @@ plt.tight_layout()
 
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/allTRTDRab5UMAP.svg',transparent=True)
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/allTRTDRab5UMAP.pdf')
-#plt.savefig('C:/Users/E14Ge/Desktop/Data_results/allTRTDRab5UMAP.png',dpi=600)
+plt.savefig('/Users/simonepernice/Desktop/res/allTRTDRab5UMAP.png',dpi=600)
 
-plt.show()
+#plt.show()
 
 
 
@@ -147,10 +152,10 @@ plt.legend()
 plt.grid(False)
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/allTRTDRab5UMAP.svg',transparent=True)
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/allTRTDRab5UMAP.pdf')
-#plt.savefig('C:/Users/E14Ge/Desktop/Data_results/allTRTDRab5UMAP.png',dpi=600)
-plt.show()
+plt.savefig('/Users/simonepernice/Desktop/res/FilteredallTRTDRab5UMAP.png',dpi=600)
+#plt.show()
 
-
+print("Clutering")
 
 """ CLUSTERING """
 
@@ -164,7 +169,7 @@ plt.show()
 
 # Calculate inertia for a range of k values
 inertia = []
-k_range = range(1, 11)  # Test from 1 to 10 clusters
+k_range = range(1, 4)  # Test from 1 to 10 clusters
 
 for k in k_range:
     kmeans = KMeans(n_clusters=k, random_state=42)
@@ -180,13 +185,13 @@ plt.plot(k_range, inertia, marker='o')
 plt.xlabel('Number of Clusters (k)')
 plt.ylabel('Inertia')
 plt.title('Elbow Method')
-plt.show()
+#plt.show()
 
 
 ### SILHOUETTE SCORE ###
 
 silhouette_scores = []
-k_range = range(2, 11) # Silhouette requires at least 2 clusters
+k_range = range(2, 4) # Silhouette requires at least 2 clusters
 
 for k in k_range:
     kmeans = KMeans(n_clusters=k, random_state=42)
@@ -202,12 +207,14 @@ plt.plot(k_range, silhouette_scores, marker='o')
 plt.xlabel('Number of Clusters (k)')
 plt.ylabel('Silhouette Score')
 plt.title('Silhouette Analysis')
-plt.show()
+#plt.show()
 
+print("ciao")
 # Optimal k is where the silhouette score is maximized
-optimal_k = k_range[silhouette_scores.index(max(silhouette_scores))]
-print(f"Optimal number of clusters: {optimal_k}")
-
+#optimal_k = k_range[silhouette_scores.index(max(silhouette_scores))]
+optimal_k = 2
+print(optimal_k)
+print("ciao")
 
 
 # I perform KMeans clustering with optiaml number of clusters
@@ -215,6 +222,7 @@ print(f"Optimal number of clusters: {optimal_k}")
 
 # Define number of clusters
 n_clusters = optimal_k
+
 
 # Initialize k-means
 kmeans = KMeans(n_clusters=n_clusters, random_state=42)
@@ -250,11 +258,11 @@ plt.ylabel('UMAP Dimension 2')
 
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/ControlRab11UMAP_ref2.svg',transparent=True)
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/ControlRab11UMAP_ref2.pdf')
-#plt.savefig('C:/Users/E14Ge/Desktop/Data_results/ControlRab11UMAP_ref2.png',dpi=600)
+plt.savefig('/Users/simonepernice/Desktop/res/ControlRab11UMAP_ref2.png',dpi=600)
 
-plt.show()
+# plt.show()
 
-
+print("FEATURES VALUES VISUALIZATION IN UMAP")
 """ FEATURES VALUES VISUALIZATION IN UMAP """
 
 
@@ -309,8 +317,8 @@ for column in reduced_df:
     # Add labels and title
     #plt.savefig(f'C:/Users/E14Ge/Desktop/Data_results/UMAP_features2_colControlRef2{column}.svg')
     #plt.savefig(f'C:/Users/E14Ge/Desktop/Data_results/UMAP_features2_colControlRef2{column}.pdf')
-    #plt.savefig(f'C:/Users/E14Ge/Desktop/Data_results/UMAP_features2_colControlRef2{column}.png',dpi=600)
-    plt.show()
+    plt.savefig(f'/Users/simonepernice/Desktop/res/UMAP_features2_colControlRef2{column}.png',dpi=600)
+    # plt.show()
 
 
 
@@ -342,8 +350,8 @@ for feature in features:
     plt.tight_layout()
     #plt.savefig(f'C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/{feature}.svg')
     #plt.savefig(f'C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/{feature}.pdf')
-    #plt.savefig(f'C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/{feature}.png',dpi=600)
-    plt.show()
+    plt.savefig(f'/Users/simonepernice/Desktop/res/{feature}.png',dpi=600)
+    #plt.show()
     
     
     
@@ -507,11 +515,10 @@ ax.legend(loc='upper right', bbox_to_anchor=(1.1, 1.1))
 
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/Radar_plot.svg')
 #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/Radar_plot.pdf')
-#plt.savefig('C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/Radar_plot.png',dpi=600)
+plt.savefig('/Users/simonepernice/Desktop/res/Radar_plot.png',dpi=600)
 
 
-# Show the plot
-plt.show()
+# Show the plot plt.show()
 
 
 
@@ -584,9 +591,9 @@ if n_clusters <= 2:
     
     #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/Feat_importanceAll.svg')
     #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/Feat_importanceAll.pdf')
-    #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/Feat_importanceAll.png',dpi=600)
+    plt.savefig('/Users/simonepernice/Desktop/res/Feat_importanceAll.png',dpi=600)
     
-    plt.show()
+    #plt.show()
     
 else:
     
@@ -634,7 +641,7 @@ else:
     
     #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/Feat_importanceHM.svg')
     #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/Feat_importanceClusterHM.pdf')
-    #plt.savefig('C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/Feat_importanceClusterHM.png',dpi=600)
+    plt.savefig('/Users/simonepernice/Desktop/res/Feat_importanceClusterHM.png',dpi=600)
     
     plt.show()
 

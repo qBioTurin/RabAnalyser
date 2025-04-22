@@ -1,5 +1,6 @@
-source(system.file("R","Functions.R", package = "RabAnalyser"))
 
+source(system.file("R","Functions.R", package = "RabAnalyser"))
+#source("files/Functions.R")
 # for installing umap: install_version("RcppTOML", version = "0.1.3", repos = "http://cran.us.r-project.org")
 
 server <- function(input, output, session) {
@@ -13,11 +14,12 @@ server <- function(input, output, session) {
   results  <- reactiveValues(DockerStep2 = "",
                              TableStep2 = NULL)  # Store the process
 
-  singleCNCTN_results <- reactiveValues(Data = NULL,
-                                        FilteredData = NULL,
-                                        clustering =NULL,
-                                        violinPlot=NULL,
-                                        umapPlot=NULL)
+  Clustering_results <- reactiveValues(Data = NULL,
+                                       FilteredData = NULL,
+                                       clustering =NULL,
+                                       violinPlot=NULL,
+                                       features = NULL,
+                                       umapPlot=NULL)
 
   ##### START: SC_KS_singlePopulation #####
   # Reactive value to store the selected folder
@@ -117,93 +119,58 @@ server <- function(input, output, session) {
 
   ##### END: SC_KS_singlePopulation #####
 
-  ##### START: SC_singleCNCTN #####
+  ##### START: SC_Clustering #####
 
-  observeEvent(input$singleCNCTN_excel,{
+  observeEvent(input$Clustering_excel,{
 
-    file = req(input$singleCNCTN_excel$datapath)
-    df <- read_excel(file)
+    if(!is.null(Clustering_results$Data)){
+    shinyalert::shinyalert(
+      title = "New File Detected",
+      text = "An existing analysis is already loaded. Do you want to replace it with the new upload?",
+      type = "warning",
+      showCancelButton = TRUE,
+      confirmButtonText = "Yes, replace it",
+      cancelButtonText = "Cancel",
+      callbackR = function(response) {
+        if (isTRUE(response)){
+          # Reset structures
+          Clustering_results$Data <- NULL
+          Clustering_results$FilteredData <- NULL
+          Clustering_results$clustering <- NULL
+          Clustering_results$violinPlot <- NULL
+          Clustering_results$features <- NULL
+          Clustering_results$umapPlot <- NULL
 
-    shinybusy::show_modal_spinner()
-    # Feature Selection
-    threshold <- 0.75
-    reduced_df <- FilterFeat(df, threshold)
+          files = req(input$Clustering_excel$datapath)
 
-    singleCNCTN_results$Data = df
-    singleCNCTN_results$FilteredData = reduced_df
+          shinybusy::show_modal_spinner()
 
-    features = colnames(singleCNCTN_results$FilteredData)
-    updateSelectInput(session =session, "singleCNCTN_colorUMAPselect", choices = c( features), selected = features[1])
+          initializeClusteringStep(session,input,output,Clustering_results,files)
 
-    # Correlation Matrix Plot (Before Filtering)
-    correlation_matrixOLD <- cor(df, use = "pairwise.complete.obs")
+          updateSelectInput(session =session, "Clustering_colorUMAPselect", choices = Clustering_results$features, selected = Clustering_results$features[1])
+          shinybusy::remove_modal_spinner()
+        }
+      }
+    )
+    }else{
+      files = req(input$Clustering_excel$datapath)
 
-    melted_corr <- melt(correlation_matrixOLD)
+      shinybusy::show_modal_spinner()
 
-    output$CorrMatrixBeforeFiltering = renderPlot({
-      ggplot(melted_corr, aes(Var1, Var2, fill = value)) +
-        geom_tile() +
-        scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0) +
-        theme_minimal() + labs(x = "", y= "")+
-        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        ggtitle("Correlation Matrix of Original Features")
-    })
+      initializeClusteringStep(session,input,output,Clustering_results,files)
 
-    # Correlation Matrix Plot (After Filtering)
-    correlation_matrixNEW <- cor(reduced_df, use = "pairwise.complete.obs")
-    melted_corr_new <- melt(correlation_matrixNEW)
-
-    output$CorrMatrixAfterFiltering = renderPlot({
-      ggplot(melted_corr_new, aes(Var1, Var2, fill = value)) +
-        geom_tile() +
-        scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0) +
-        theme_minimal() + labs(x = "", y= "")+
-        theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-        ggtitle("Correlation Matrix of Filtered Features")
-    })
-
-    # UMAP Analysis
-    scaled_data <- scale(reduced_df, center = TRUE, scale = apply(reduced_df, 2, sd) * sqrt((nrow(reduced_df)-1)/nrow(reduced_df)))
-
-    set.seed(42)
-    reducer <- umap(scaled_data, n_neighbors = 10, min_dist = 0.5, n_components = 2)
-    umap_df <- as.data.frame(reducer$layout)
-    names(umap_df) <- c("UMAP1", "UMAP2")
-
-    #saveRDS(umap_df,file = "umap_df.RDs")
-    ### cluster SCOREs ###
-    singleCNCTN_results$clustering <- plotLIST <- cluster.generation(data = umap_df)
-
-    # Display results
-
-    k = as.numeric(names(plotLIST$AllClusteringIndex$bestK[1]))
-
-    output$singleCNCTN_clustChoicePlot <- renderPlot({
-      plotLIST$silhouette +
-        geom_vline(aes(xintercept =k ,
-                       color = paste0("Best k considering ",
-                                      plotLIST$AllClusteringIndex$bestK[1], " indexes over ",
-                                      sum((plotLIST$AllClusteringIndex$bestK)))
-        ), linetype = "dashed"
-        )+labs(col = "")
-    })
-
-    bestk = as.data.frame(plotLIST$AllClusteringIndex$bestK)
-    colnames(bestk) = c("Number of\n clusters", "Number of indexes\n in accordance")
-    output$singleCNCTN_ClusterIndexesTable = renderTable(bestk)
-    updateSliderInput(session,"singleCNCTN_clusterSlider",value = k,min =2 ,max = 10)
-
-    shinybusy::remove_modal_spinner()
+      shinybusy::remove_modal_spinner()
+    }
   })
 
-  observeEvent(input$singleCNCTN_clusterSlider,{
-    plotLIST = req(singleCNCTN_results$clustering)
-    slider= req(input$singleCNCTN_clusterSlider)
-    k = as.numeric(names(plotLIST$AllClusteringIndex$bestK[1]))
-    output$singleCNCTN_clustChoicePlot <- renderPlot({
+  observeEvent(input$Clustering_clusterSlider,{
+    plotLIST = req(Clustering_results$clustering)
+    slider= req(input$Clustering_clusterSlider)
+
+    output$Clustering_clustChoicePlot <- renderPlot({
       plotLIST$silhouette +
         geom_vline(aes(xintercept = slider , color = "From slider" ), linetype = "dashed" )+
-        geom_vline(aes(xintercept = k ,
+        geom_vline(aes(xintercept =  as.numeric(names(plotLIST$AllClusteringIndex$bestK[1])) ,
                        color = paste0("Best k considering ",
                                       plotLIST$AllClusteringIndex$bestK[1], " indexes over ",
                                       sum((plotLIST$AllClusteringIndex$bestK))
@@ -213,84 +180,226 @@ server <- function(input, output, session) {
     })
   })
 
-  observeEvent(input$singleCNCTN_clusterStart,{
+  observeEvent(input$Clustering_clusterStart,{
     shinybusy::show_modal_spinner()
     isolate({
-      req(input$singleCNCTN_clusterSlider!=0)
-      req(singleCNCTN_results$clustering)
-      data = singleCNCTN_results$clustering$Data
+      req(input$Clustering_clusterSlider!=0)
+      req(Clustering_results$clustering)
+      req(Clustering_results$features) -> features
+
+      data = Clustering_results$clustering$Data
 
       set.seed(42)
-      kmeans_result <- kmeans(data, centers = as.numeric(input$singleCNCTN_clusterSlider), nstart = 25)
+      kmeans_result <- kmeans(data, centers = as.numeric(input$Clustering_clusterSlider), nstart = 25)
       data$cluster <- as.factor(kmeans_result$cluster)
-      singleCNCTN_results$clustering$dataClustered =data
+      Clustering_results$clustering$dataClustered = data
 
-      features = colnames(singleCNCTN_results$FilteredData)
-      updateSelectInput(session =session, "singleCNCTN_colorUMAPselect", choices = c("cluster", features), selected = "cluster")
-      updateSelectInput(session =session, "singleCNCTN_ViolinColor", choices = c( features), selected = features[1])
+      updateSelectInput(session =session, "Clustering_colorUMAPselect", choices = c("cluster", features), selected = "cluster")
+
+      if(length(features[features == "Treatment"]) > 0 ) features = features[features != "Treatment"]
+      updateSelectInput(session =session, "Clustering_ViolinColor", choices = c(features), selected = features[1])
+
     })
     shinybusy::remove_modal_spinner()
   })
 
+  #### Violin Plot + statistics ####
   observe({
-    req(input$singleCNCTN_ViolinColor) -> feature
+    input$Group_Clustering_violin -> groupTreat
 
-    ## ViolinPlot
-    WholeData = cbind(req(singleCNCTN_results$clustering$dataClustered),
-                      req(singleCNCTN_results$FilteredData) )
-    isolate({
-      #### STATISTICAL TEST ####
-      # Perform pairwise Wilcoxon test (Mann-Whitney U test)
-      test_results <- WholeData %>%
-        rstatix::wilcox_test(as.formula(paste(feature, "~ cluster"))) %>%
-        rstatix::adjust_pvalue(method = "bonferroni") %>% # Adjust for multiple testing
-        mutate(Significant = ifelse(p.adj < 0.05, "*", "ns"))  # Mark significance
-
-      # Compute median differences for each pair
-      cluster_medians <- WholeData %>%
-        group_by(cluster) %>%
-        summarise(median_val = median(!!sym(feature)))
-
-      test_results <- test_results %>%
-        left_join(cluster_medians, by = c("group1" = "cluster")) %>%
-        rename(median1 = median_val) %>%
-        left_join(cluster_medians, by = c("group2" = "cluster")) %>%
-        rename(median2 = median_val) %>%
-        mutate(Median_Diff = abs(median1 - median2) ) # Compute absolute median difference
-
-      output$singleCNCTN_Stattest <- renderTable({
-        test_results[,-1]
+    output$UI_statTables = renderUI({
+      if(!is.null(groupTreat) && groupTreat){
+        tagList(
+          h3("Homogeneity of proportions inside each group"),
+          DT::dataTableOutput("Clustering_Stattest"),
+          h3("Homogeneity of proportions between groups"),
+          DT::dataTableOutput("Clustering_GruopsStattest")
+        )
+      }else{
+        tagList(
+        h3("Statistical differences between groups"),
+        DT::dataTableOutput("Clustering_Stattest")
+        )
+      }
       })
-
-      singleCNCTN_results$violinPlot =
-        ggplot(WholeData )+
-        geom_jitter(
-          aes(x = cluster,
-              y = !!sym(input$singleCNCTN_ViolinColor),
-              col=cluster,
-              fill =cluster), width = 0.1)+
-        geom_violin(
-          aes(x = cluster,
-              y = !!sym(input$singleCNCTN_ViolinColor),
-              col=cluster,
-              fill =cluster), alpha = 0.5) +
-        ggtitle(paste0("Violin Plot of", feature , "Across Clusters") )+
-        scale_color_viridis_d()+
-        scale_fill_viridis_d()+
-        theme_minimal()
-
-      output$singleCNCTN_ClusterViolinplot <- renderPlot({
-        singleCNCTN_results$violinPlot
-      })
-    })
-
   })
 
   observe({
-    WholeData = cbind(req(singleCNCTN_results$clustering$dataClustered),
-                      req(singleCNCTN_results$FilteredData) )
+    req(input$Clustering_ViolinColor) -> feature
+    input$Group_Clustering_violin -> groupTreat
+    shinybusy::show_modal_spinner()
+    ## ViolinPlot
+    WholeData = cbind(req(Clustering_results$clustering$dataClustered),
+                      req(Clustering_results$FilteredData) )
+
     isolate({
-      lapply(colnames(singleCNCTN_results$FilteredData), function(feature) {
+      #### STATISTICAL TEST ####
+      # Perform pairwise Wilcoxon test (Mann-Whitney U test)
+
+      if(!is.null(groupTreat) && groupTreat ){
+        tab = WholeData %>% group_by(Treatment, cluster) %>%
+          count() %>%
+          spread(key = cluster, value = n) %>% ungroup() %>% as.data.frame()
+        rownames(tab) = tab$Treatment
+
+        xtab = as.matrix(tab %>% select(-Treatment))
+
+        tabTot = WholeData %>% group_by(Treatment, cluster) %>%
+          count()%>% group_by(cluster) %>%
+          group_by(Treatment) %>%
+          mutate(total = sum(n)) %>%
+          ungroup() %>% as.data.frame()
+
+        do.call(rbind, lapply(unique(WholeData$cluster), function(c){
+          tabTot2=tabTot %>% filter(cluster ==c)%>% mutate(no = total - n )  %>% rename(yes = n) %>% select(-cluster,-Treatment, -total)
+          xtab = as.matrix(tabTot2 )
+          rownames(xtab) = tabTot %>% filter(cluster ==c) %>% pull(Treatment)
+          if(dim(xtab)[1] >2){
+            xtab = t(xtab)
+            proptab = pairwise_prop_test(xtab)
+          }else{
+            proptab= prop_test(xtab, detailed = TRUE)
+            proptab = proptab %>% select(cluster,n1,n2,p, p.signif,conf.low, conf.high )
+              #rename(!!sym(rownames(xtab)[1]) = n1, !!sym(rownames(xtab)[2]) = n2)
+
+            proptab$group1 =  rownames(xtab)[1]
+            proptab$group2 =  rownames(xtab)[2]
+          }
+          proptab$cluster = c
+          proptab
+        }) ) -> proptab
+
+        if(ncol(xtab)==2)
+          xtab = t(xtab)
+
+        do.call(rbind, lapply(unique(WholeData$Treatment), function(t){
+          tabTot2=tabTot %>% filter(Treatment ==t)%>% mutate(no = total - n )  %>% rename(yes = n) %>% select(-cluster,-Treatment, -total)
+          xtab = as.matrix(tabTot2 )
+          rownames(xtab) = tabTot %>% filter(Treatment ==t) %>% pull(cluster)
+          if(dim(xtab)[1] >2){
+            xtab = t(xtab)
+            proptab = pairwise_prop_test(xtab)
+          }else{
+            proptab= prop_test(xtab, detailed = TRUE)
+            proptab = proptab %>% select(cluster,n1,n2,p, p.signif,conf.low, conf.high )
+            #rename(!!sym(rownames(xtab)[1]) = n1, !!sym(rownames(xtab)[2]) = n2)
+
+            proptab$group1 =  rownames(xtab)[1]
+            proptab$group2 =  rownames(xtab)[2]
+          }
+          proptab$Treatment = t
+          proptab
+        }) ) -> prop_alongCluster
+
+        output$Clustering_GruopsStattest <- DT::renderDT({
+          prop_alongCluster
+        },
+        options = list(scrollX = TRUE, dom = 't'),
+        rownames = FALSE)
+
+        output$Clustering_Stattest <- DT::renderDT({
+          proptab
+        },
+        options = list(scrollX = TRUE, dom = 't'),
+        rownames = FALSE)
+
+        max_y_by_cluster <- WholeData %>%
+          group_by(cluster) %>%
+          summarise(max_y = max(.data[[feature]], na.rm = TRUE))
+
+        proptab
+      }else{
+        test_results <- WholeData %>%
+          rstatix::wilcox_test(as.formula(paste(feature, "~ cluster"))) %>%
+          rstatix::adjust_pvalue(method = "bonferroni") %>% # Adjust for multiple testing
+          mutate(Significant = ifelse(p.adj < 0.05, "*", "ns"))  # Mark significance
+
+        # Compute median differences for each pair
+        cluster_medians <- WholeData %>%
+          group_by(cluster) %>%
+          summarise(median_val = median(!!sym(feature)))
+
+        test_results <- test_results %>%
+          left_join(cluster_medians, by = c("group1" = "cluster")) %>%
+          rename(median1 = median_val) %>%
+          left_join(cluster_medians, by = c("group2" = "cluster")) %>%
+          rename(median2 = median_val) %>%
+          mutate(Median_Diff = abs(median1 - median2) )%>% # Compute absolute median difference
+          mutate(across(where(is.numeric), round, 16))
+
+        output$Clustering_Stattest <- DT::renderDT({
+          test_results[, -1]
+        },
+        options = list(scrollX = TRUE, dom = 't'),
+        rownames = FALSE)
+
+        maxY <- max(WholeData[[feature]], na.rm = TRUE)
+        stepY <- (maxY * 0.10)  # spacing between bars
+
+        test_results <- test_results %>%
+          mutate(y.position = maxY + stepY * (row_number()))
+
+      }
+
+
+      if(!is.null(groupTreat) && groupTreat){
+        Clustering_results$violinPlot =
+          ggplot(WholeData )+
+          geom_point(aes(x = cluster,
+                         y = !!sym(feature),
+                         col=Treatment,
+                         fill =Treatment),
+                     position = position_jitterdodge(seed = 1, dodge.width = 0.9))+
+          geom_violin(
+            aes(x = cluster,
+                y = !!sym(feature),
+                col=Treatment,
+                fill =Treatment), alpha = 0.5)+
+          ggtitle(paste("Violin Plot of", feature , "Across Clusters and Treatments") )+
+          scale_color_viridis_d(option = "plasma")+
+          scale_fill_viridis_d(option = "plasma")+
+          theme_minimal()
+      }else{
+        Clustering_results$violinPlot =
+          ggplot(WholeData )+
+          geom_jitter(
+            aes(x = cluster,
+                y = !!sym(feature),
+                col=cluster,
+                fill =cluster), width = 0.1)+
+          geom_violin(
+            aes(x = cluster,
+                y = !!sym(feature),
+                col=cluster,
+                fill =cluster), alpha = 0.5) +
+          ggtitle(paste("Violin Plot of", feature , "Across Clusters") )+
+          scale_color_viridis_d()+
+          scale_fill_viridis_d()+
+          theme_minimal()+
+          ggpubr::stat_pvalue_manual(data = test_results,
+                                     label = "Significant",
+                                     y.position = "y.position",
+                                     xmin = "group1", xmax = "group2")
+      }
+
+
+      output$Clustering_ClusterViolinplot <- renderPlot({
+        Clustering_results$violinPlot
+      })
+
+    })
+    shinybusy::remove_modal_spinner()
+
+  })
+
+  #### FoldChangePlot ####
+  observe({
+    WholeData = cbind(req(Clustering_results$clustering$dataClustered),
+                      req(Clustering_results$FilteredData) )
+
+    shinybusy::show_modal_spinner()
+    isolate({
+      lapply(colnames(Clustering_results$FilteredData %>% select(-Treatment)), function(feature) {
         #### STATISTICAL TEST ####
         # Perform pairwise Wilcoxon test (Mann-Whitney U test)
         test_results <- WholeData %>%
@@ -325,95 +434,170 @@ server <- function(input, output, session) {
 
       SM_final = do.call(rbind, StatList)
 
-      singleCNCTN_results$FoldChangePlot = ggplot(SM_final, aes(y = Cluster_pairs, x = Feature)) +
+      Clustering_results$FoldChangePlot = ggplot(SM_final, aes(y = Cluster_pairs, x = Feature)) +
         geom_point(aes(size = Size, fill = Fold_Change),
                    shape = 21, stroke = 0.5, alpha = 0.75) +
         scale_size_continuous(range = c(5, 20)) +
         scale_fill_gradientn(colors = c("#997FD2", "#F3A341"), limits = c(0, max(SM_final$Fold_Change))) +
         labs(y = "Cluster Pairs", x = "Feature",
-             fill = "Fold Change Median", size = "-log10(p)",
+             fill = "Fold Change Median", size = "-log10(p.adj)",
              title = "Fold Change & p-value") +
         theme_minimal() +
         theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
 
-      output$singleCNCTN_FoldChangePlot <- renderPlot({
-        singleCNCTN_results$FoldChangePlot
+      output$Clustering_FoldChangePlot <- renderPlot({
+        Clustering_results$FoldChangePlot
       })
     })
+    shinybusy::remove_modal_spinner()
 
   })
 
+  #### UMAP Plot ####
   observe({
     # I visualize in the UMAP space the features values. I use
     # only the features selected after feature selection
 
-    input$singleCNCTN_colorUMAPselect -> colorVar
-    req(singleCNCTN_results$clustering$Data)
+    input$Clustering_colorUMAPselect -> colorVar
+    req(Clustering_results$clustering$Data)
 
-    if(!is.null(singleCNCTN_results$clustering$dataClustered)){
-      data =singleCNCTN_results$clustering$dataClustered
-      WholeData = cbind(data,singleCNCTN_results$FilteredData)
-    }else{
-      WholeData = cbind(singleCNCTN_results$clustering$Data,singleCNCTN_results$FilteredData)
-    }
+    shinybusy::show_modal_spinner()
+    isolate({
+      if(!is.null(Clustering_results$clustering$dataClustered)){
+        data =Clustering_results$clustering$dataClustered
+        WholeData = cbind(data,Clustering_results$FilteredData)
 
-    if(colorVar == "")
-      gp = geom_point(alpha = 0.8)
-    else
-      gp = geom_point(aes(color = !!sym(colorVar) ), alpha = 0.8)
+        if(colorVar == "Treatment"){
+          df = WholeData %>% select(Treatment, cluster ) %>%
+            group_by(Treatment, cluster) %>% summarise( n = length(cluster)) %>%
+            group_by(cluster) %>% mutate( Prop = n/sum(n))
 
-    if(colorVar == "cluster")
-      colorscale = scale_color_viridis_d()
-    else
-      colorscale = scale_colour_gradient2(mid = "white", low =  "blue",  high = "darkgreen",midpoint = 0)
+          Clustering_results$proportionPlot = ggplot(df )+
+            geom_bar(
+              aes(x = cluster,
+                  y = Prop,
+                  col=Treatment,
+                  fill =Treatment),stat = "identity",position = "dodge")+
+            ggtitle(paste("Proportion of data Across Clusters and Treatments") )+
+            scale_y_continuous(labels = scales::percent,limits = c(0,1))+
+            scale_color_viridis_d(option = "plasma")+
+            scale_fill_viridis_d(option = "plasma")+
+            theme_minimal()+coord_flip()
+        }else{
+          df = WholeData %>% select(cluster)
 
-    singleCNCTN_results$umapPlot = ggplot(WholeData, aes(x = UMAP1, y = UMAP2) ) +
-      gp +
-      ggtitle("UMAP Data Visualization") +
-      theme_minimal()+
-      colorscale
+          Clustering_results$proportionPlot = ggplot(df )+
+            geom_bar(
+              aes(x = "1", col= cluster,
+                  fill =cluster),position = "fill")+
+            scale_y_continuous(labels = scales::percent)+
+            labs(y = "Prop", title = paste("Proportion of Data Across Clusters") )+
+            scale_color_viridis_d()+
+            scale_fill_viridis_d()+
+            theme_minimal()+coord_flip()
+        }
+        output$Clustering_ProportionPlot<- renderPlot({
+          Clustering_results$proportionPlot
+        })
 
-    output$singleCNCTN_coloredUMAPplot <- renderPlot({
-      singleCNCTN_results$umapPlot
+      }else{
+        WholeData = cbind(Clustering_results$clustering$Data,Clustering_results$FilteredData)
+      }
+
+      if(is.null(Clustering_results$clustering$dataClustered) && colorVar == "cluster")
+        colorVar = ""
+
+      if(colorVar == "")
+        gp = geom_point(alpha = 0.8)
+      else
+        gp = geom_point(aes(color = !!sym(colorVar) ), alpha = 0.8)
+
+      if(colorVar == "cluster")
+        colorscale = scale_color_viridis_d()
+      else if(colorVar == "Treatment")
+        colorscale = scale_color_viridis_d(option = "plasma")
+      else
+        colorscale = scale_colour_gradient2(mid = "white", low =  "blue",  high = "darkgreen",midpoint = 0)
+
+      Clustering_results$umapPlot = ggplot(WholeData, aes(x = UMAP1, y = UMAP2) ) +
+        gp +
+        ggtitle("UMAP Data Visualization") +
+        theme_minimal()+
+        colorscale
+
+      output$Clustering_coloredUMAPplot <- renderPlot({
+        Clustering_results$umapPlot
+      })
     })
+
+    shinybusy::remove_modal_spinner()
+
   })
 
   observe({
-    WholeData = cbind(req(singleCNCTN_results$clustering$dataClustered),
-                      req(singleCNCTN_results$FilteredData) )
+    WholeData = cbind(req(Clustering_results$clustering$dataClustered),
+                      req(Clustering_results$FilteredData) )
 
-    df_cluster = WholeData %>% select(-UMAP1,-UMAP2) %>%
-      tidyr::gather(-cluster, value = "KS", key = "Features" ) %>%
-      mutate(Sign = if_else(KS>0,"KS > 0","KS < 0") ) %>%
-      group_by(cluster,Features, Sign) %>%
-      summarise(Count = n() ) %>%
-      group_by(cluster, Features) %>%
-      mutate(Proportion = Count / sum(Count)) %>%
-      ungroup() %>%
-      mutate(cluster = paste0("Cluster ", cluster))
+    if(!is.null(input$Group_Clustering_subpop) &&  input$Group_Clustering_subpop){
+      df_cluster = WholeData %>% select(-UMAP1,-UMAP2) %>%
+        tidyr::gather(-cluster,-Treatment, value = "KS", key = "Features" ) %>%
+        mutate(Sign = if_else(KS>0,"KS > 0","KS < 0") ) %>%
+        group_by(cluster,Treatment,Features, Sign) %>%
+        summarise(Count = n() ) %>%
+        group_by(cluster, Features,Treatment) %>%
+        mutate(Proportion = Count / sum(Count)) %>%
+        ungroup() %>%
+        mutate(cluster = paste0("Cluster ", cluster))
 
-    # Plot
-    output$singleCNCTN_SubPopPlot = renderPlot({
-      ggplot(df_cluster, aes(x = Features, y = Proportion,  fill = Sign)) +
-        geom_bar(position = "stack",stat = "identity") +
-        scale_fill_manual(values = c("KS > 0" = "#2ca02c", "KS < 0" = "#1f77b4")) +
-        labs(title = paste("Cluster - Feature-wise KS Sign Proportion"),
-             x = "Features", y = "Proportion", fill = "Sign") +
-        theme_minimal() +
-        facet_grid(~cluster) +
-        theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
-    })
+      # Plot
+      output$Clustering_SubPopPlot = renderPlot({
+        ggplot(df_cluster, aes(x = Features, y = Proportion,  fill = Sign)) +
+          geom_bar(position = "stack",stat = "identity") +
+          scale_fill_manual(values = c("KS > 0" = "#2ca02c", "KS < 0" = "#1f77b4")) +
+          labs(title = paste("Cluster - Feature-wise KS Sign Proportion"),
+               x = "Features", y = "Proportion", fill = "Sign") +
+          scale_y_continuous(labels = scales::percent)+
+          theme_minimal() +
+          facet_grid(Treatment~cluster) +
+          theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
+      })
+    }else{
+      df_cluster = WholeData %>% select(-UMAP1,-UMAP2,-Treatment) %>%
+        tidyr::gather(-cluster, value = "KS", key = "Features" ) %>%
+        mutate(Sign = if_else(KS>0,"KS > 0","KS < 0") ) %>%
+        group_by(cluster,Features, Sign) %>%
+        summarise(Count = n() ) %>%
+        group_by(cluster, Features) %>%
+        mutate(Proportion = Count / sum(Count)) %>%
+        ungroup() %>%
+        mutate(cluster = paste0("Cluster ", cluster))
+
+      # Plot
+      output$Clustering_SubPopPlot = renderPlot({
+        ggplot(df_cluster, aes(x = Features, y = Proportion,  fill = Sign)) +
+          geom_bar(position = "stack",stat = "identity") +
+          scale_fill_manual(values = c("KS > 0" = "#2ca02c", "KS < 0" = "#1f77b4")) +
+          labs(title = paste("Cluster - Feature-wise KS Sign Proportion"),
+               x = "Features", y = "Proportion", fill = "Sign") +
+          theme_minimal() +
+          facet_grid(~cluster) +
+          scale_y_continuous(labels = scales::percent)+
+          theme(axis.text.x = element_text(angle = 45, hjust = 1), legend.position = "bottom")
+      })
+    }
+
   })
 
   observe({
     ## Feature selection
-    WholeData = cbind(req(singleCNCTN_results$clustering$dataClustered),
-                      req(singleCNCTN_results$FilteredData) )
+    WholeData = cbind(req(Clustering_results$clustering$dataClustered),
+                      req(Clustering_results$FilteredData) )
 
-    X <- WholeData %>% select(-UMAP1, -UMAP2, -cluster)  # All except last
+    X <- WholeData %>% select(-UMAP1, -UMAP2, -cluster, - Treatment)  # All except last
     y <- as.factor( WholeData %>% select(cluster) %>% pull() )  # Last column
     n_clusters = length(unique(y))
 
+    shinybusy::show_modal_spinner()
     isolate({
       if (n_clusters <= 2) {
         # Train/test split
@@ -437,17 +621,8 @@ server <- function(input, output, session) {
         rf_full <- randomForest(x = X, y = y, ntree = 100, importance=TRUE)
         importance_df <- as.data.frame(importance(rf_full))
         importance_df$Feature <- rownames(importance_df)
-        importance_df <- importance_df %>% mutate(MeanDecreaseGini = MeanDecreaseGini/sum(MeanDecreaseGini)) %>% arrange(desc(MeanDecreaseGini))
-
-        # Plot
-        ImportancePLot = ggplot(importance_df, aes(x = reorder(Feature, MeanDecreaseGini), y = MeanDecreaseGini)) +
-          geom_bar(stat = "identity", fill = "darkgreen") +
-          coord_flip() +
-          labs(x = "Feature", y = "Feature importance (Decreasing Gini Index)",
-               title = "Feature Importance") +
-          theme_minimal()+
-          lims(y = c(0,1) )
-
+        importance_df <- importance_df %>% mutate(Importance = MeanDecreaseGini/sum(MeanDecreaseGini)) %>% arrange(desc(MeanDecreaseGini))
+        importance_df <- importance_df %>% gather(-MeanDecreaseAccuracy, -MeanDecreaseGini, -Feature, -Importance,key = "Cluster", value = "values")
       } else {
         # One-vs-all Feature Importance Heatmap
         classes <- levels(y)
@@ -461,25 +636,27 @@ server <- function(input, output, session) {
           feature_importance_matrix[i, ] <- rf_model$importance[, "MeanDecreaseGini"]/sum(rf_model$importance[, "MeanDecreaseGini"])
         }
 
-        df_long <- as.data.frame(feature_importance_matrix) %>% mutate(Cluster = rownames(feature_importance_matrix)) %>%
+        importance_df <- as.data.frame(feature_importance_matrix) %>% mutate(Cluster = rownames(feature_importance_matrix)) %>%
           tidyr::pivot_longer(-Cluster, names_to = "Feature", values_to = "Importance")
-
-        # Heatmap using ggplot
-        ImportancePLot = ggplot(df_long, aes(x = Feature, y = Cluster, fill = Importance)) +
-          geom_tile(color = "white") +
-          scale_fill_gradient(low = "white", high = "darkgreen",limits = c(0,1)) +
-          theme_minimal() +
-          theme(axis.text.x = element_text(angle = 45, hjust = 1),
-                legend.position = "bottom") +
-          labs(title = "Feature Importance Heatmap",
-               x = "Feature",
-               y = "Cluster",
-               fill = "Importance")
 
       }
 
-      output$singleCNCTN_FeaturePlot = renderPlot({ImportancePLot})
+
+      # Heatmap using ggplot
+      ImportancePLot = ggplot(importance_df, aes(x = Feature, y = Cluster, fill = Importance)) +
+        geom_tile(color = "white") +
+        scale_fill_gradient(low = "white", high = "darkgreen",limits = c(0,1)) +
+        theme_minimal() +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1),
+              legend.position = "bottom") +
+        labs(title = "Feature Importance Heatmap",
+             x = "Feature",
+             y = "Cluster",
+             fill = "Importance")
+
+      output$Clustering_FeaturePlot = renderPlot({ImportancePLot})
     })
+    shinybusy::remove_modal_spinner()
 
   })
 
@@ -487,21 +664,21 @@ server <- function(input, output, session) {
   ##### UMAP Plot Edit #####
 
   ##### Violin Plot Edit #####
-  observeEvent(input$EDIT_singleCNCTN_colorUMAP, {
-    req(singleCNCTN_results$umapPlot)
-    showPlotModal(session, "singleCNCTN_coloredUMAPplot", singleCNCTN_results$umapPlot)
+  observeEvent(input$EDIT_Clustering_colorUMAP, {
+    req(Clustering_results$umapPlot)
+    showPlotModal(session, "Clustering_coloredUMAPplot", Clustering_results$umapPlot)
   })
-  generateDownloadHandler(session, input, output, "singleCNCTN_coloredUMAPplot", singleCNCTN_results$umapPlot)
-  applyPlotChanges(session, input, output, "singleCNCTN_coloredUMAPplot", singleCNCTN_results$umapPlot)
+  generateDownloadHandler(session, input, output, "Clustering_coloredUMAPplot", Clustering_results$umapPlot)
+  applyPlotChanges(session, input, output, "Clustering_coloredUMAPplot", Clustering_results$umapPlot)
 
-  observeEvent(input$EDIT_singleCNCTN_violin, {
-    req(singleCNCTN_results$violinPlot)
-    showPlotModal(session, "singleCNCTN_ClusterViolinplot", singleCNCTN_results$violinPlot)
+  observeEvent(input$EDIT_Clustering_violin, {
+    req(Clustering_results$violinPlot)
+    showPlotModal(session, "Clustering_ClusterViolinplot", Clustering_results$violinPlot)
   })
-  generateDownloadHandler(session, input, output, "singleCNCTN_ClusterViolinplot", singleCNCTN_results$violinPlot)
-  applyPlotChanges(session, input, output, "singleCNCTN_ClusterViolinplot", singleCNCTN_results$violinPlot)
+  generateDownloadHandler(session, input, output, "Clustering_ClusterViolinplot", Clustering_results$violinPlot)
+  applyPlotChanges(session, input, output, "Clustering_ClusterViolinplot", Clustering_results$violinPlot)
 
   ##### END Plot Edit #####
 
-  ##### END: SC_singleCNCTN #####
+  ##### END: SC_Clustering #####
 }

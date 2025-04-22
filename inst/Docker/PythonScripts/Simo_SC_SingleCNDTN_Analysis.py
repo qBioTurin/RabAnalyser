@@ -53,27 +53,6 @@ reduced_df['Clusters'] = labels
 features = [col for col in reduced_df.columns if col != 'Clusters']
 
 
-custom_palette = ['purple', 'blue', 'green', 'yellow']
-
-# Plot violin plots for each feature
-for feature in features:
-    plt.figure(figsize=(8, 6))
-    ax = sns.violinplot(x='Clusters', y=feature, data=reduced_df, palette=custom_palette, linewidth=0.5)
-    
-    # Set transparency for each violin
-    for patch in ax.collections:
-        patch.set_alpha(0.5)  # Adjust transparency level (0 is fully transparent, 1 is opaque)
-    
-    plt.title(f'Violin Plot of {feature} Across Clusters')
-    plt.xlabel('Cluster')
-    plt.ylabel(feature)
-    plt.tight_layout()
-    #plt.savefig(f'C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/{feature}.svg')
-    #plt.savefig(f'C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/{feature}.pdf')
-    #plt.savefig(f'C:/Users/E14Ge/Desktop/Data_results/UMAP_clusters_comparison/{feature}.png',dpi=600)
-    plt.show()
-    
-    
     
 """ STATISTICAL TEST  """
 

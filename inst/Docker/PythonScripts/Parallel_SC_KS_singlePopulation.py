@@ -32,7 +32,10 @@ start_time = time.perf_counter()
 """ REFERENCE DISTRIBUTION FILE LOADING """
 
 # Specify the folder containing the .mat control file
-CTRL_path = sys.argv[1] # 'C:/Users/E14Ge/Desktop/Rab clusters data features2/screening/control'
+#CTRL_path = sys.argv[1] # 'C:/Users/E14Ge/Desktop/Rab clusters data features2/screening/control'
+CTRL_path = "/Users/simonepernice/Desktop/res/ScreeningVehicle_Rab11.mat"
+COMP_path = "/Users/simonepernice/Desktop/res/ScreeningNocodazole_Rab11.mat"
+
 
 # Find .mat control filee in the folder
 #CTRLmat_files = glob.glob(os.path.join(CTRL_path, '*.mat'))
@@ -50,7 +53,7 @@ ctrl = CTRLmat_data['ClustersB']
 # Specify the folder containing the .mat file to be compared to reference distribution
 # ClusterA: Rab5
 # ClusterB: Rab11
-COMP_path = sys.argv[2] #'C:/Users/E14Ge/Desktop/Rab clusters data features2/screening/treated'
+#COMP_path = sys.argv[2] #'C:/Users/E14Ge/Desktop/Rab clusters data features2/screening/treated'
 
 # Find .mat control files in the folder
 # COMPmat_files = glob.glob(os.path.join(COMP_path, '*.mat'))
@@ -82,6 +85,7 @@ Mcomp = int(max(comp[:,0])) # max label of treated cells
 # script running time
 comp_groups = {label: comp[comp[:, 0] == label, :] for label in np.unique(comp[:, 0])}
 
+print(comp_groups)
 
 print('\n')
 print("KS variability estimation")
