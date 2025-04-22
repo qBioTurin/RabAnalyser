@@ -1,4 +1,96 @@
 
+initializeClusteringStep = function(session,input,output,Clustering_results,files){
+  df = do.call(rbind,
+               lapply(seq_along(files),function(i){
+                 df <- read_excel(files[i])
+                 df$Treatment = gsub(pattern = ".xlsx$",replacement = "", x= input$Clustering_excel$name[i])
+                 df
+               })
+  )
+
+  # Feature Selection
+  threshold <- 0.75
+  reduced_df <- FilterFeat(df%>%select(-Treatment), threshold)
+
+  Clustering_results$Data = df
+  Clustering_results$FilteredData = cbind(reduced_df,df%>%select(Treatment))
+
+  features = colnames(reduced_df)
+
+  if(length(unique(df$Treatment))>1 ){
+    features = c( "Treatment",features)
+    output$UI_clustviolin = renderUI({
+      column(4,offset=1,
+             checkboxInput("Group_Clustering_violin",label = "Group by Treatment",value = F )
+      )
+    })
+    output$UI_clustsubpop = renderUI({
+      fluidRow(
+        column(4,
+               checkboxInput("Group_Clustering_subpop",label = "Group by Treatment",value = F )
+        )
+      )
+    })
+  }
+  Clustering_results$features = features
+
+  updateSelectInput(session =session, "Clustering_colorUMAPselect", choices = c( features), selected = features[1])
+  # Correlation Matrix Plot (Before Filtering)
+  correlation_matrixOLD <- cor(df%>%select(-Treatment), use = "pairwise.complete.obs")
+
+  melted_corr <- melt(correlation_matrixOLD)
+
+  output$CorrMatrixBeforeFiltering = renderPlot({
+    ggplot(melted_corr, aes(Var1, Var2, fill = value)) +
+      geom_tile() +
+      scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0) +
+      theme_minimal() + labs(x = "", y= "")+
+      theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+      ggtitle("Correlation Matrix of Original Features")
+  })
+
+  # Correlation Matrix Plot (After Filtering)
+  correlation_matrixNEW <- cor(reduced_df, use = "pairwise.complete.obs")
+  melted_corr_new <- melt(correlation_matrixNEW)
+
+  output$CorrMatrixAfterFiltering = renderPlot({
+    ggplot(melted_corr_new, aes(Var1, Var2, fill = value)) +
+      geom_tile() +
+      scale_fill_gradient2(low = "blue", high = "red", mid = "white", midpoint = 0) +
+      theme_minimal() + labs(x = "", y= "")+
+      theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+      ggtitle("Correlation Matrix of Filtered Features")
+  })
+
+  # UMAP Analysis
+  scaled_data <- scale(reduced_df, center = TRUE, scale = apply(reduced_df, 2, sd) * sqrt((nrow(reduced_df)-1)/nrow(reduced_df)))
+
+  set.seed(42)
+  reducer <- umap(scaled_data, n_neighbors = 10, min_dist = 0.5, n_components = 2)
+  umap_df <- as.data.frame(reducer)
+  names(umap_df) <- c("UMAP1", "UMAP2")
+
+  ### cluster SCOREs ###
+  Clustering_results$clustering <- plotLIST <- cluster.generation(data = umap_df)
+
+  # Display results
+  k = as.numeric(names(plotLIST$AllClusteringIndex$bestK[1]))
+
+  output$Clustering_clustChoicePlot <- renderPlot({
+    plotLIST$silhouette +
+      geom_vline(aes(xintercept = as.numeric(names(plotLIST$AllClusteringIndex$bestK[1])),
+                     color = paste0("Best k considering ",
+                                    plotLIST$AllClusteringIndex$bestK[1], " indexes over ",
+                                    sum((plotLIST$AllClusteringIndex$bestK)))
+      ), linetype = "dashed"
+      )+labs(col = "")
+  })
+
+  bestk = as.data.frame(plotLIST$AllClusteringIndex$bestK)
+  colnames(bestk) = c("Number of\n clusters", "Number of indexes\n in accordance")
+  output$Clustering_ClusterIndexesTable = renderTable(bestk)
+  updateSliderInput(session,"Clustering_clusterSlider",value = k,min =2 ,max = 10)
+}
 
 FilterFeat <- function(df, threshold) {
   # Compute correlation matrix
@@ -33,8 +125,9 @@ FilterFeat <- function(df, threshold) {
 
 cluster_indexes <-function(data){
   AllIndexes = do.call(rbind,
-                       lapply(2:6,function(k){
+                       lapply(2:10,function(k){
                          # Perform the kmeans algorithm
+                         set.seed(42)
                          cl <- kmeans(data, k)
                          df = clusterCrit::intCriteria(as.matrix(data),cl$cluster,"all")
                          data.frame(k = k, as.data.frame(df) )
@@ -54,9 +147,12 @@ cluster_indexes <-function(data){
 }
 
 cluster.generation <- function(data) {
-    set.seed(42)
-    sil_values <- factoextra::fviz_nbclust(data, kmeans, method = "silhouette")
-    allCl = cluster_indexes(data)
+  #sil_values <- factoextra::fviz_nbclust(data, kmeans, method = "silhouette")
+  allCl = cluster_indexes(data)
+
+  sil_values = rbind(allCl$AllIndexes %>% select(k,silhouette), c(1,0)) %>%
+    ggplot() + geom_line(aes(x = k, y = silhouette))+ geom_point(aes(x = k, y = silhouette)) +
+    theme_minimal()+labs(x = "Number of Clusters", y = "Silhouette score (to maximise)")
 
   return(list(Data = data, silhouette = sil_values, AllClusteringIndex = allCl))
 }
