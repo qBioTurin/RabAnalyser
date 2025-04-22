@@ -80,15 +80,33 @@ server <- function(input, output, session) {
     COMPmat_data <- readMat(mat2_path$datapath)
     comp <- COMPmat_data$ClustersB
 
+    update_modal_progress(
+      0.05,
+      text = "loading data",
+      session = shiny::getDefaultReactiveDomain()
+    )
+
     # Data cleaning
     ctrl <- cleaning(ctrl)
     comp <- cleaning(comp)
     names(comp) =  colnames(ctrl) = c("id", features)
 
+    update_modal_progress(
+      0.1,
+      text = "cleaning data",
+      session = shiny::getDefaultReactiveDomain()
+    )
+
     ecdf1List = lapply(features,function(n){
       Ref <- ctrl[, n]
       ecdf(Ref)
     })
+
+    update_modal_progress(
+      0.25,
+      text = "First ecdf calculation",
+      session = shiny::getDefaultReactiveDomain()
+    )
 
     names(ecdf1List) = features
     # KS Matrix Generation
@@ -107,8 +125,8 @@ server <- function(input, output, session) {
       return(KSv)
     }
 
-    cl <- makeCluster(getOption("cl.cores", detectCores()-1))
-    clusterExport(cl, c("comp_groups", "two_sample_signed_ks_statistic","ctrl","Mcomp","ecdf1List"))
+    cl <- makeCluster(getOption("cl.cores", min(1,parallel::detectCores()-2) ))
+    #clusterExport(cl, c( "two_sample_signed_ks_statistic","ctrl","Mcomp","ecdf1List"))
     results <- clusterApply(cl, 1:Mcomp, compute_ks )
     stopCluster(cl)
     KScontrol <- do.call(cbind, results)
