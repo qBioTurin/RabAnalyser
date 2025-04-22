@@ -15,5 +15,5 @@ remotes::install_github("qBioTurin/RabAnalyser", ref="main", dependencies=TRUE)
 To run the Shiny application:
 
 ```r
-rabanalyser::rabanalyser.run()
+RabAnalyser::rabanalyser.run()
 ```

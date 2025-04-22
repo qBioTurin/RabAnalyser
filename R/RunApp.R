@@ -20,8 +20,8 @@ rabanalyser.run <-function()
 {
   x = T
 
-  Appui <- system.file("Shiny","ui.R", package = "rabanalyser")
-  Appserver <- system.file("Shiny","server.R", package = "rabanalyser")
+  Appui <- system.file("Shiny","ui.R", package = "RabAnalyser")
+  Appserver <- system.file("Shiny","server.R", package = "RabAnalyser")
 
   source(Appui)
   source(Appserver)
@@ -32,12 +32,12 @@ rabanalyser.run <-function()
   )
 
   app$staticPaths <- list(
-    `/` = httpuv::staticPath(system.file("Shiny","www", package = "rabanalyser"), indexhtml = FALSE, fallthrough = TRUE)
+    `/` = httpuv::staticPath(system.file("Shiny","www", package = "RabAnalyser"), indexhtml = FALSE, fallthrough = TRUE)
   )
 
   runApp(app)
   # runApp(
-  #   appDir = system.file("Shiny" package = "rabanalyser"),
+  #   appDir = system.file("Shiny" package = "RabAnalyser"),
   #   launch.browser = T
   # )
 }
