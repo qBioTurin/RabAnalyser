@@ -199,7 +199,7 @@ overflow-y:scroll; max-height: 250px; background: ghostwhite;}"))
 
 
 ui <- page_navbar(
-  theme =  bs_theme(preset = "united"),
+  theme =  bslib::bs_theme(preset = "united"),
   id = "NavBar",
   title = "RabAnalyser",
   nav_spacer(),
