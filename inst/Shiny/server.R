@@ -126,7 +126,7 @@ server <- function(input, output, session) {
     }
 
     cl <- makeCluster(getOption("cl.cores", max(1,parallel::detectCores()-2) ))
-    #clusterExport(cl, c( "two_sample_signed_ks_statistic","ctrl","Mcomp","ecdf1List"))
+    clusterExport(cl, c("comp_groups", "two_sample_signed_ks_statistic","ctrl","Mcomp","ecdf1List"))
     results <- clusterApply(cl, 1:Mcomp, compute_ks )
     stopCluster(cl)
     KScontrol <- do.call(cbind, results)
