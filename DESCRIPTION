@@ -35,4 +35,5 @@ Imports:
   DT,
   shiny,
   shinyWidgets,
-  xfun
+  xfun,
+  httpuv

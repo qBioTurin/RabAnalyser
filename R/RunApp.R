@@ -4,10 +4,12 @@
 #' @param Null no paramters are needed
 #'
 #' @author  Pernice Simone Tealdi Simone
-#' @import shinyFiles shinyjs stringr readxl ggplot2 ggthemes factoextra dplyr openxlsx uwot reshape2 rstatix fs parallel shinybusy randomForest caret pheatmap clusterCrit bslib writexl
+#' @import shinyFiles shinyjs stringr readxl ggthemes factoextra dplyr openxlsx uwot reshape2 rstatix fs parallel shinybusy caret pheatmap httpuv clusterCrit bslib writexl
 #' @rawNamespace import(DT, except=c(dataTableOutput,renderDataTable))
 #' @rawNamespace import(shiny,except=runExample)
 #' @rawNamespace import(shinyWidgets,except=alert)
+#' @rawNamespace import(randomForest,except=combine)
+#' @rawNamespace import(ggplot2,except=margin)
 #' @rawNamespace import(xfun,except=c(file_exists,dir_create,dir_exists))
 #'
 #' @examples
