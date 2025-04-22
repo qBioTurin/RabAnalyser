@@ -39,6 +39,25 @@ server <- function(input, output, session) {
 
 
   observeEvent(input$runStep2, {
+
+
+    if( is.null(input$mat1$datapath) || is.null(input$mat2$datapath) ){
+      shinyalert::shinyalert(
+        title = "Error",
+        text = "Both the mat files must be selected",
+        type = "error")
+      return()
+    }
+
+    if(is.null(folderPath())){
+      shinyalert::shinyalert(
+        title = "Error",
+        text = "A folder path to save the results must be defined",
+        type = "error")
+      return()
+    }
+
+
     req(input$mat1, input$mat2, folderPath())
 
     # Get the absolute file paths
@@ -47,7 +66,7 @@ server <- function(input, output, session) {
     shared_folder <- folderPath()
 
     if(is.null(input$step2Feature) ){
-      featureFile = system.file("Docker/PythonScripts","featurespython2.xlsx", package = "RabAnalyser")
+      featureFile = system.file("Shiny/files","featurespython2.xlsx", package = "RabAnalyser")
       features <- names(read_excel(featureFile))
     }else{
       features = input$step2Feature
