@@ -2,6 +2,7 @@
 
 export(rabanalyser.run)
 import(DT, except=c(dataTableOutput,renderDataTable))
+import(R.matlab)
 import(bslib)
 import(caret)
 import(clusterCrit)

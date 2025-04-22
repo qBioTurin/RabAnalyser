@@ -31,7 +31,7 @@ server <- function(input, output, session) {
                  session = session)
 
   folderPath <- reactive({
-    if (is.null(input$folder)) return(NULL)
+    if (is.null(input$folder) || input$folder == 0 ) return(NULL)
     parseDirPath(roots = vols, input$folder)
   })
 

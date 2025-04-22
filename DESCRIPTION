@@ -36,4 +36,5 @@ Imports:
   shiny,
   shinyWidgets,
   xfun,
-  httpuv
+  httpuv,
+  R.matlab
