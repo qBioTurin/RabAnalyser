@@ -4,7 +4,7 @@
 #' @param Null no paramters are needed
 #'
 #' @author  Pernice Simone Tealdi Simone
-#' @import shinyFiles shinyjs stringr readxl ggthemes factoextra dplyr openxlsx uwot R.matlab reshape2 rstatix fs parallel shinybusy caret pheatmap httpuv clusterCrit bslib writexl
+#' @import shinyFiles shinyjs stringr readxl ggthemes dplyr openxlsx uwot R.matlab reshape2  fs parallel shinybusy caret pheatmap httpuv bslib writexl
 #' @rawNamespace import(DT, except=c(dataTableOutput,renderDataTable))
 #' @rawNamespace import(shiny,except=runExample)
 #' @rawNamespace import(shinyWidgets,except=alert)

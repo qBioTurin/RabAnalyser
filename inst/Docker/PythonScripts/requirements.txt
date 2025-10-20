@@ -1,0 +1,5 @@
+# Legacy requirements file retained for backwards compatibility.
+# The authoritative dependency list now lives at inst/python/requirements.txt.
+#
+# Please use that file (via reticulate helpers or the updated
+# create_python_env.sh script) when provisioning the Python environment.

@@ -1,21 +1,27 @@
+#' Initialize Clustering Step
+#'
+#' This function processes uploaded Excel files, performs feature selection based on correlation filtering,
+#' creates UMAP embeddings, and computes clustering results using internal clustering indexes.
+#' It updates UI elements (in a Shiny app) accordingly.
+#'
+#' @param session Shiny session object.
+#' @param input Shiny input object.
+#' @param output Shiny output object.
+#' @param Clustering_results A reactiveValues object to store clustering results.
+#' @param files A character vector of file paths to the uploaded Excel files.
+#'
+#' @return Updates the `Clustering_results` object and renders UI and plots for clustering analysis.
+#' @export
 
 initializeClusteringStep = function(session,input,output,Clustering_results,files){
-  df = do.call(rbind,
-               lapply(seq_along(files),function(i){
-                 df <- read_excel(files[i])
-                 df$Treatment = gsub(pattern = ".xlsx$",replacement = "", x= input$Clustering_excel$name[i])
-                 df
-               })
-  )
 
-  # Feature Selection
-  threshold <- 0.75
-  reduced_df <- FilterFeat(df%>%select(-Treatment), threshold)
+  results = prepare_clustering_data(file_paths = files,
+                                    file_names = input$Clustering_excel$name,
+                                    corr_threshold = 0.75)
 
-  Clustering_results$Data = df
-  Clustering_results$FilteredData = cbind(reduced_df,df%>%select(Treatment))
-
-  features = colnames(reduced_df)
+  Clustering_results$Data = results$df
+  Clustering_results$FilteredData = results$filtered_data
+  features = results$features
 
   if(length(unique(df$Treatment))>1 ){
     features = c( "Treatment",features)
@@ -63,15 +69,10 @@ initializeClusteringStep = function(session,input,output,Clustering_results,file
   })
 
   # UMAP Analysis
-  scaled_data <- scale(reduced_df, center = TRUE, scale = apply(reduced_df, 2, sd) * sqrt((nrow(reduced_df)-1)/nrow(reduced_df)))
-
-  set.seed(42)
-  reducer <- umap(scaled_data, n_neighbors = 10, min_dist = 0.5, n_components = 2)
-  umap_df <- as.data.frame(reducer)
-  names(umap_df) <- c("UMAP1", "UMAP2")
+  umap_cluster = perform_umap_clustering(filtered_df = reduced_df )
 
   ### cluster SCOREs ###
-  Clustering_results$clustering <- plotLIST <- cluster.generation(data = umap_df)
+  Clustering_results$clustering <- plotLIST <- umap_cluster$clustering
 
   # Display results
   k = as.numeric(names(plotLIST$AllClusteringIndex$bestK[1]))
@@ -92,37 +93,8 @@ initializeClusteringStep = function(session,input,output,Clustering_results,file
   updateSliderInput(session,"Clustering_clusterSlider",value = k,min =2 ,max = 10)
 }
 
-FilterFeat <- function(df, threshold) {
-  # Compute correlation matrix
-  correlation_matrix <- cor(df, use = "pairwise.complete.obs")
 
-  # Find feature pairs with correlation above the threshold
-  correlated_pairs <- which(abs(correlation_matrix) > threshold, arr.ind = TRUE)
-  correlated_pairs <- correlated_pairs[correlated_pairs[, 1] < correlated_pairs[, 2], ]
-
-  removed_features <- c()
-
-  for (i in seq_len(nrow(correlated_pairs))) {
-    feature1 <- colnames(df)[correlated_pairs[i, 1]]
-    feature2 <- colnames(df)[correlated_pairs[i, 2]]
-
-    if (feature1 %in% removed_features || feature2 %in% removed_features) {
-      next
-    }
-
-    # Compare variances to decide which feature to remove
-    if (var(df[[feature1]], na.rm = TRUE) > var(df[[feature2]], na.rm = TRUE)) {
-      removed_features <- c(removed_features, feature2)
-    } else {
-      removed_features <- c(removed_features, feature1)
-    }
-  }
-
-  # Return the DataFrame with redundant features removed
-  df <- df[, !colnames(df) %in% removed_features]
-  return(df)
-}
-
+################### Clustering ###################
 cluster_indexes <-function(data){
   AllIndexes = do.call(rbind,
                        lapply(2:10,function(k){
@@ -145,7 +117,6 @@ cluster_indexes <-function(data){
 
   return(list(bestK = bestK, AllIndexes = AllIndexes))
 }
-
 cluster.generation <- function(data) {
   #sil_values <- factoextra::fviz_nbclust(data, kmeans, method = "silhouette")
   allCl = cluster_indexes(data)
@@ -157,28 +128,11 @@ cluster.generation <- function(data) {
   return(list(Data = data, silhouette = sil_values, AllClusteringIndex = allCl))
 }
 
-# Function to clean data (remove NaN rows)
-cleaning <- function(matrix) {
-  matrix <- matrix[complete.cases(matrix), ]
-  return(as.data.frame(matrix))
-}
-
-# Function to compute two-sample signed KS statistic
-two_sample_signed_ks_statistic <- function(sample1, sample2,ecdf1) {
-  #ecdf1 <- ecdf(sample1)
-  ecdf2 <- ecdf(sample2)
-
-  all_x <- sort(unique(c(sample1, sample2)))
-
-  y1_interp <- ecdf1(all_x)
-  y2_interp <- ecdf2(all_x)
-
-  differences <- y1_interp - y2_interp
-  ks_statistic <- max(abs(differences))
-  signed_ks_statistic <- differences[which.max(abs(differences))]
-
-  return(c(ks_statistic, signed_ks_statistic))
-}
+# # Function to clean data (remove NaN rows)
+# cleaning <- function(matrix) {
+#   matrix <- matrix[complete.cases(matrix), ]
+#   return(as.data.frame(matrix))
+# }
 
 RabAnalyser.getVolumes=function(exclude, from="~", custom_name="Home"){
   osSystem <- Sys.info()["sysname"]

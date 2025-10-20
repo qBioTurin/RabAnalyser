@@ -79,61 +79,63 @@ server <- function(input, output, session) {
 
     COMPmat_data <- readMat(mat2_path$datapath)
     comp <- COMPmat_data$ClustersB
+#
+#     update_modal_progress(
+#       0.05,
+#       text = "loading data",
+#       session = shiny::getDefaultReactiveDomain()
+#     )
 
-    update_modal_progress(
-      0.05,
-      text = "loading data",
-      session = shiny::getDefaultReactiveDomain()
-    )
+    df = perform_ks_analysis(ctrl_matrix = ctrl, comp_matrix = comp, features)
 
-    # Data cleaning
-    ctrl <- cleaning(ctrl)
-    comp <- cleaning(comp)
-    names(comp) =  colnames(ctrl) = c("id", features)
-
-    update_modal_progress(
-      0.1,
-      text = "cleaning data",
-      session = shiny::getDefaultReactiveDomain()
-    )
-
-    ecdf1List = lapply(features,function(n){
-      Ref <- ctrl[, n]
-      ecdf(Ref)
-    })
-
-    update_modal_progress(
-      0.25,
-      text = "First ecdf calculation",
-      session = shiny::getDefaultReactiveDomain()
-    )
-
-    names(ecdf1List) = features
-    # KS Matrix Generation
-    Mcomp <- max(comp[,1])
-    comp_groups <- lapply( unique(comp[,1]), function(id) comp[comp[,1] == id,] )
-    names(comp_groups) <- unique(comp[,1])
-
-    compute_ks <- function(i) {
-      KSv <- sapply(features, function(n,ii) {
-        compN <- comp_groups[[as.character(ii)]][, n]
-        Ref <- ctrl[, n]
-        KS <- two_sample_signed_ks_statistic(Ref, compN, ecdf1List[[n]])
-        return(KS[2])
-      },ii=i)
-      cat(sprintf("Progress: %f %%\n", i/Mcomp))
-      return(KSv)
-    }
-
-    cl <- makeCluster(getOption("cl.cores", max(1,parallel::detectCores()-2) ))
-    clusterExport(cl, c("comp_groups", "two_sample_signed_ks_statistic","ctrl","Mcomp","ecdf1List"),envir = environment() )
-    results <- clusterApply(cl, 1:Mcomp, compute_ks )
-    stopCluster(cl)
-    KScontrol <- do.call(cbind, results)
-
-    # Dataframe creation
-    df <- as.data.frame(t(KScontrol))
-    names(df) <- features
+    # # Data cleaning
+    # ctrl <- cleaning(ctrl)
+    # comp <- cleaning(comp)
+    # names(comp) =  colnames(ctrl) = c("id", features)
+    #
+    # update_modal_progress(
+    #   0.1,
+    #   text = "cleaning data",
+    #   session = shiny::getDefaultReactiveDomain()
+    # )
+    #
+    # ecdf1List = lapply(features,function(n){
+    #   Ref <- ctrl[, n]
+    #   ecdf(Ref)
+    # })
+    #
+    # update_modal_progress(
+    #   0.25,
+    #   text = "First ecdf calculation",
+    #   session = shiny::getDefaultReactiveDomain()
+    # )
+    #
+    # names(ecdf1List) = features
+    # # KS Matrix Generation
+    # Mcomp <- max(comp[,1])
+    # comp_groups <- lapply( unique(comp[,1]), function(id) comp[comp[,1] == id,] )
+    # names(comp_groups) <- unique(comp[,1])
+    #
+    # compute_ks <- function(i) {
+    #   KSv <- sapply(features, function(n,ii) {
+    #     compN <- comp_groups[[as.character(ii)]][, n]
+    #     Ref <- ctrl[, n]
+    #     KS <- two_sample_signed_ks_statistic(Ref, compN, ecdf1List[[n]])
+    #     return(KS[2])
+    #   },ii=i)
+    #   cat(sprintf("Progress: %f %%\n", i/Mcomp))
+    #   return(KSv)
+    # }
+    #
+    # cl <- makeCluster(getOption("cl.cores", max(1,parallel::detectCores()-2) ))
+    # clusterExport(cl, c("comp_groups", "two_sample_signed_ks_statistic","ctrl","Mcomp","ecdf1List"),envir = environment() )
+    # results <- clusterApply(cl, 1:Mcomp, compute_ks )
+    # stopCluster(cl)
+    # KScontrol <- do.call(cbind, results)
+    #
+    # # Dataframe creation
+    # df <- as.data.frame(t(KScontrol))
+    # names(df) <- features
     results$TableStep2 <- df
 
     output$TableStep2 = DT::renderDataTable(
