@@ -20,6 +20,8 @@ import json
 from pathlib import Path
 from joblib import Parallel, delayed
 from multiprocessing import cpu_count
+from scipy.spatial.distance import cdist
+from skimage import measure
 
 def load_images(condition_path, folder_name):
     """Load all TIFF images from a specific folder."""
@@ -54,7 +56,21 @@ def synchronize_nucleus_cell(nucleus_m, cell_m):
 
 
 def circularity(mask):
-    """Calculate circularity of labeled spots."""
+    """
+    Compute the circularity of labeled Rab spot. This is a corrected version 
+    to avoid values that are higher than 1. They are meaningless.
+    
+    Formula:
+    circularity = (4π * area / perimeter²) * (1 - 0.5 / r)²
+    where r = perimeter / (2π) + 0.5
+    
+    Inputs:
+    - mask: labeled image of Rab spots
+  
+    Returns:
+    - result: 1D NumPy array of the circularities of Rab spots
+    """
+
     props = regionprops(mask)
     circ_values = []
     
@@ -68,19 +84,36 @@ def circularity(mask):
             r = perim / (2 * np.pi) + 0.5
             correction = (1 - 0.5 / r) ** 2
             circ = (4 * np.pi * area / (perim ** 2)) * correction
-            circ_values.append(min(circ, 1.0))  # Cap at 1
+            circ_values.append(circ)
     
     return np.array(circ_values)
 
 
 def feret_diameter(cell_mask):
     """Calculate Feret's diameter of a cell mask."""
-    contours = np.argwhere(cell_mask > 0)
-    if len(contours) < 2:
-        return 1.0
+      
+    # Find all contours of the cell
+    contours = measure.find_contours(cell_mask, level=0.5)
     
-    distances = distance.pdist(contours)
-    return np.max(distances) if len(distances) > 0 else 1.0
+    # Select the longest contour, that is the cell
+    contour = max(contours, key=len)
+
+    # Compute the convex hull (the smallest polygon that enclose the cell) 
+    hull = ConvexHull(contour)
+    hull_points = contour[hull.vertices]
+
+    # Compute all pairwise distances between convex hull points.
+    # Feret's diameter is the maximum of these distances
+    dists = distance.pdist(hull_points)
+    Feret_d = np.max(dists)
+    
+    return Feret_d
+    # contours = np.argwhere(cell_mask > 0)
+    # if len(contours) < 2:
+    #     return 1.0
+    # 
+    # distances = distance.pdist(contours)
+    # return np.max(distances) if len(distances) > 0 else 1.0
 
 
 def distance_from_nucleus_centroid(nuc_centroid, cell_mask, spot_mask, feret_d):
@@ -99,7 +132,20 @@ def distance_from_nucleus_centroid(nuc_centroid, cell_mask, spot_mask, feret_d):
 
 
 def distance_from_nucleus_outline(nucleus_mask, cell_mask, spot_mask, feret_d):
-    """Distance from nucleus outline normalized by Feret's diameter."""
+    """
+    Compute normalized distances of Rab spots from the nucleus outlines.
+    Distances are normalized by the Feret's diameter.
+
+    Parameters:
+    - spot_mask: 2D labeled image — Rab spot mask within the current cell
+    - nucleus_mask: 2D labeled image - nucleus mask of the cell of interest.
+    - cell_mask: 2D labeled image — cell mask of the cell of interest containing
+                 the spots selected
+    - feret_d: Feret's diameter
+
+    Returns:
+    - D: np.array of normalized distances
+    """
     nuc_outline = nucleus_mask ^ binary_erosion(nucleus_mask)
     outline_coords = np.column_stack(np.nonzero(nuc_outline))
     
@@ -179,8 +225,67 @@ def number_of_neighbors(spot_mask, neighbor_radius):
     
     return np.array(neighbor_counts)
 
+def NumNeighb(d, mask, cell):
 
-def extract_features_from_image(nucleus_m, cell_m, rab, spot, min_spot_size=8, neighbor_radius=15):
+
+    # Binary version of the cell mask
+    cell_bw = cell > 0
+
+    # Get centroids of Rab spots
+    props = regionprops(mask)
+    centroids = [p.centroid for p in props if not np.any(np.isnan(p.centroid))]
+
+   
+
+    centroids = np.array(centroids)
+
+    # Compute all pairwise distances
+    dist_matrix = cdist(centroids, centroids)
+    np.fill_diagonal(dist_matrix, np.inf)  # Avoid self-counting
+
+    # Initialize result
+    num = []
+    
+
+    for i, center in enumerate(centroids):
+        
+        #i = 0
+        # Count neighbors within distance d
+        neighbors_within_d = np.sum(dist_matrix[i] < d)
+
+        # Build a binary circular mask centered at centroid[i]
+        
+        # generate zero-matrix where build the circular mask
+        matrix = np.zeros_like(cell, dtype=np.uint8)
+        
+        # generate a grid contianing the coordinates of all the pixels of matrix
+        col, row = np.meshgrid(np.arange(cell.shape[1]), np.arange(cell.shape[0]))
+        
+        # compute the distance of all the fixells falling in the circle centred in the Rab spot
+        dist_from_center = np.sqrt((row - center[0])**2 + (col - center[1])**2)
+        
+        # generate the circular mask
+        matrix[dist_from_center <= d] = 1
+
+        # Intersection of search area (circle) and cell
+        fraction = matrix * cell_bw
+
+        sumA = np.sum(matrix)      # area of search region
+        sumB = np.sum(fraction)    # area of overlap with cell
+
+        # Avoid divide-by-zero
+        if sumB == 0:
+            weight = 0
+        else:
+            weight = sumA / sumB  # same logic as your original
+
+        # Weighted neighbor count
+        num.append(neighbors_within_d * weight)
+
+    return np.array(num)
+  
+  
+def extract_features_from_image(image_indx, nucleus_m, cell_m, rab, spot, min_spot_size=8, neighbor_radius=15):
     """Extract all features from a single image."""
     
     # Synchronize nucleus and cell masks
@@ -192,6 +297,8 @@ def extract_features_from_image(nucleus_m, cell_m, rab, spot, min_spot_size=8, n
     for cell_label in range(1, max_cell + 1):
         mask_cell = (cell_m == cell_label)
         mask_nuc = (nucleus_m_new == cell_label)
+        
+        # print(f"\nCell: {cell_label}, Image: {image_indx}\n")
         
         if np.sum(mask_cell) == 0:
             continue
@@ -210,10 +317,14 @@ def extract_features_from_image(nucleus_m, cell_m, rab, spot, min_spot_size=8, n
         spotf = spotnew.copy()
         for lbl in small_labels:
             spotf[spotf == lbl] = 0
-        
-        # Skip if no valid spots
-        if len(np.unique(spotf)) - 1 <= 0:
-            continue
+      
+        # if the cell has less that 2 Rab spots I skip the cell
+        if len(np.unique(spotf)) - 1 <= 20:
+            continue  # skip if this cell doesn't exist
+                  
+        # # Skip if no valid spots
+        # if len(np.unique(spotf)) - 1 <= 0:
+        #     continue
         
         # Get Feret's diameter
         feret_d = feret_diameter(cell_m_new)
@@ -267,10 +378,11 @@ def extract_features_from_image(nucleus_m, cell_m, rab, spot, min_spot_size=8, n
         dist_nn = nearest_neighbor_distance(cell_m_new, spotf, feret_d)
         
         # Number of neighbors
-        num_neigh = number_of_neighbors(spotf, neighbor_radius)
-        
+        #num_neigh = number_of_neighbors(spotf, neighbor_radius)
+        num_neigh = NumNeighb(neighbor_radius, spotf, cell_m_new)
         # Combine all features
         cell_features = np.column_stack([
+            np.full(len(area), image_indx),  # image_id
             np.full(len(area), cell_label),  # cell_id
             area,
             intsum,
@@ -295,7 +407,7 @@ def extract_features_from_image(nucleus_m, cell_m, rab, spot, min_spot_size=8, n
 
 def _process_image_worker(nucleus_file, cell_file, rab_file, spot_file, min_spot_size, neighbor_radius, image_idx, n_images):
     """Worker function to process a single image. Module-level for proper serialization."""
-    print(f"  Processing image {image_idx+1}/{n_images}")
+    # print(f"  Processing image {image_idx+1}/{n_images}")
     try:
         nucleus_m = imread(nucleus_file)
         cell_m = imread(cell_file)
@@ -303,6 +415,7 @@ def _process_image_worker(nucleus_file, cell_file, rab_file, spot_file, min_spot
         spot = imread(spot_file)
         
         img_features = extract_features_from_image(
+            image_idx,
             nucleus_m, cell_m, rab, spot,
             min_spot_size=min_spot_size,
             neighbor_radius=neighbor_radius
@@ -326,6 +439,7 @@ def _process_single_image(args):
         spot = imread(spot_file)
         
         img_features = extract_features_from_image(
+            i,
             nucleus_m, cell_m, rab, spot,
             min_spot_size=min_spot_size,
             neighbor_radius=neighbor_radius
@@ -355,6 +469,8 @@ def process_condition(condition_path, min_spot_size=8, neighbor_radius=15, n_job
         spot_folder: Name of the folder containing spot masks (default: "rab5_mask")
     """
     
+    print(f"condition_path {condition_path}")
+    
     # Load image paths using custom folder names
     nucleus_files = load_images(condition_path, nucleus_folder)
     cell_files = load_images(condition_path, cell_folder)
@@ -362,6 +478,9 @@ def process_condition(condition_path, min_spot_size=8, neighbor_radius=15, n_job
     spot_files = load_images(condition_path, spot_folder)
     
     n_images = min(len(nucleus_files), len(cell_files), len(rab_files), len(spot_files))
+    
+    print(f"Number of images detected: {n_images}")
+    
 
     if n_images == 0:
         return np.empty((0, 12))
@@ -380,7 +499,7 @@ def process_condition(condition_path, min_spot_size=8, neighbor_radius=15, n_job
     all_condition_features = []
     for i, img_features in results:
         if img_features is not None:
-            all_condition_features.append(img_features)
+            all_condition_features.append(  img_features )
     
     if len(all_condition_features) == 0:
         return np.empty((0, 12))
@@ -425,7 +544,7 @@ def main(root_dir, min_spot_size=8, neighbor_radius=15, n_jobs=None, output_form
     
     print(f"Using {n_jobs} parallel workers (detected {cpu_count()} CPUs)")
     
-    column_names = ["Cell_label", "size", "IntegInt", "MeanInt", "Circ", "Ecc", "Elo",
+    column_names = ["ID_image","Cell_label", "size", "IntegInt", "MeanInt", "Circ", "Ecc", "Elo",
                     "NucleusDist", "NucleusDistOut", "PMDist", "DNN", "No"]
     
     results = {}

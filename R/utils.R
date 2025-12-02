@@ -35,26 +35,37 @@ cleaning <- function(matrix) {
 #'
 #' @param envname Character scalar giving the virtualenv name. Defaults to the
 #'   value of `getOption("RabAnalyser.python.envname", "rabanalyser-venv")`.
-#' @param create Logical flag; when `TRUE` (default) the environment is created
-#'   and populated if it does not already exist.
 #' @param python Optional path to a base Python executable used when creating
 #'   the virtualenv.
 #'
 #' @return Normalized path to the managed Python executable.
 #' @export
-find_rabanalyser_python <- function(envname = getOption("RabAnalyser.python.envname", "rabanalyser-venv"),
-                                    create = TRUE,
+#' @import reticulate
+#'
+find_rabanalyser_python <- function(envname = "rabanalyser-venv", update = FALSE,
                                     python = NULL) {
-  if (!requireNamespace("reticulate", quietly = TRUE)) {
-    stop("The 'reticulate' package is required. Install it with install.packages('reticulate').")
+
+  # If update flag is set, remove existing virtualenv
+  if (update) {
+    cat("Update flag set: removing existing virtualenv...\n")
+    tryCatch({
+      reticulate::virtualenv_remove(envname, confirm = FALSE)
+      cat("Virtualenv removed successfully.\n")
+    }, error = function(e) {
+      cat("No existing virtualenv to remove or removal failed.\n")
+    })
   }
 
-  if (isTRUE(create)) {
+  # Check if virtualenv exists
+  venv_exists <- tryCatch({
+    reticulate::virtualenv_exists(envname)
+  }, error = function(e) {
+    FALSE
+  })
+
+  # If virtualenv doesn't exist, create it
+  if (!venv_exists) {
     ensure_rabanalyser_virtualenv(envname = envname, python = python)
-  } else if (!reticulate::virtualenv_exists(envname)) {
-    stop(
-      "Virtual environment '", envname, "' not found. Set create = TRUE or provision it manually."
-    )
   }
 
   # Try to get Python path from reticulate, but add fallback for direct path construction
@@ -72,22 +83,22 @@ find_rabanalyser_python <- function(envname = getOption("RabAnalyser.python.envn
   if (!file.exists(python_path)) {
     # Determine bin directory for this OS
     bin_dir <- if (.Platform$OS.type == "windows") "Scripts" else "bin"
-    exe_names <- if (.Platform$OS.type == "windows") 
-                  c("python.exe", "python3.exe") 
-                else 
-                  c("python", "python3")
-    
+    exe_names <- if (.Platform$OS.type == "windows")
+      c("python.exe", "python3.exe")
+    else
+      c("python", "python3")
+
     # Try alternative paths with different bin directories and executable names
     venv_root <- reticulate::virtualenv_root()
     alt_paths <- c()
-    
+
     # Try with virtualenv root
     for (exe in exe_names) {
       for (bin in c(bin_dir, "bin", "Scripts")) {
         alt_paths <- c(alt_paths, file.path(venv_root, envname, bin, exe))
       }
     }
-    
+
     # Try with .virtualenvs directory (Unix convention)
     home <- Sys.getenv("HOME")
     if (nzchar(home)) {
@@ -97,7 +108,7 @@ find_rabanalyser_python <- function(envname = getOption("RabAnalyser.python.envn
         }
       }
     }
-    
+
     # Try with USERPROFILE (Windows)
     if (.Platform$OS.type == "windows") {
       userprofile <- Sys.getenv("USERPROFILE")

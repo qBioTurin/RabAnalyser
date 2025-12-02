@@ -1,77 +1,3 @@
-#' Load and Preprocess Feature Data
-#'
-#' Loads feature data from Excel/CSV, applies soft-threshold denoising,
-#' and subsamples to equal group sizes for unbiased clustering analysis.
-#'
-#' @param data_path Character. Path to Excel or CSV file with features.
-#'                  Last column should contain condition labels.
-#' @param qalpha Numeric. Soft-threshold noise floor (default 0.10).
-#' @param gamma Numeric. Soft-threshold steepness parameter (default 0.05).
-#'
-#' @return List containing:
-#'   \describe{
-#'     \item{data}{Preprocessed data frame with soft-thresholded features}
-#'     \item{labels}{Condition labels vector}
-#'     \item{output_dir}{Directory where plots will be saved}
-#'   }
-#'
-#' @details
-#' The soft-threshold formula applied is:
-#' sign(x) * (|x| - qalpha) * tanh((|x| - qalpha) / gamma)
-#'
-#' This reduces noise while preserving large signals.
-#'
-#' @examples
-#' \dontrun{
-#'   result <- load_and_preprocess_features("data/features.xlsx")
-#'   df <- result$data
-#'   labels <- result$labels
-#' }
-#'
-#' @import dplyr
-#' @export
-load_and_preprocess_features <- function(data_path, qalpha = 0.10, gamma = 0.05) {
-  # Load data
-  if (grepl("\\.xlsx$", data_path)) {
-    df <- readxl::read_excel(data_path)
-  } else if (grepl("\\.csv$", data_path)) {
-    df <- read.csv(data_path)
-  } else {
-    stop("File must be .xlsx or .csv")
-  }
-
-  # Extract labels (last column)
-  labels <- df[[ncol(df)]]
-  df_num <- df[-ncol(df)]
-
-  # Apply soft-threshold denoising
-  df_num <- apply(df_num, 2, function(col) {
-    sign(col) * (abs(col) - qalpha) * tanh((abs(col) - qalpha) / gamma)
-  })
-
-  df_num <- as.data.frame(df_num)
-
-  # Combine
-  df <- cbind(df_num, Class = labels)
-
-  # Subsample to equal counts
-  min_count <- min(table(df$Class))
-  df <- df %>%
-    dplyr::group_by(.data$Class) %>%
-    dplyr::slice_sample(n = min_count, replace = FALSE) %>%
-    dplyr::ungroup() %>%
-    as.data.frame()
-
-  output_dir <- dirname(data_path)
-
-  list(
-    data = df,
-    labels = labels,
-    output_dir = output_dir
-  )
-}
-
-
 #' Filter Correlated Features
 #'
 #' Removes features with high correlation to reduce redundancy.
@@ -99,205 +25,94 @@ load_and_preprocess_features <- function(data_path, qalpha = 0.10, gamma = 0.05)
 #'
 #' @export
 filter_correlated_features <- function(df, threshold = 0.7) {
-  # Extract numeric columns (remove labels)
-  df_num <- df[, -which(names(df) == "Class")]
+  # Removes highly correlated features from a DataFrame,
+  # retaining the one with higher variance.
 
-  # Original correlation matrix
-  corr_original <- cor(df_num, use = "complete.obs")
+  if("Class" %in% colnames(df)){
+    treatment_label <- df %>% select(Class) %>% pull()
+    df <- df %>% select(-Class)
+  }else{
+    treatment_label = NULL
+  }
 
-  # Greedy correlation-based feature selection
-  selected_features <- c()
-  for (feat in colnames(df_num)) {
-    if (length(selected_features) == 0) {
-      selected_features <- c(selected_features, feat)
-    } else {
-      correlations <- abs(cor(df_num[[feat]], df_num[selected_features], use = "complete.obs"))
-      if (all(correlations < threshold)) {
-        selected_features <- c(selected_features, feat)
+  # Compute correlation matrix
+  cor_mat <- cor(df, use = "pairwise.complete.obs")
+  feats   <- colnames(df)
+  n_feats <- length(feats)
+
+  # Find feature pairs with correlation above the threshold (i < j, avoid duplicates)
+  correlated_pairs <- data.frame(
+    feature1 = character(),
+    feature2 = character(),
+    abs_corr = numeric(),
+    stringsAsFactors = FALSE
+  )
+
+  for (i in seq_len(n_feats)) {
+    for (j in seq_len(n_feats)) {
+      if (i < j) {
+        c_ij <- cor_mat[i, j]
+        if (!is.na(c_ij) && abs(c_ij) > threshold) {
+          correlated_pairs <- rbind(
+            correlated_pairs,
+            data.frame(
+              feature1 = feats[i],
+              feature2 = feats[j],
+              abs_corr = abs(c_ij),
+              stringsAsFactors = FALSE
+            )
+          )
+        }
       }
     }
   }
 
-  # Filtered data
-  df_filtered <- df_num[, selected_features]
+  if (nrow(correlated_pairs) != 0) {
+  # Sort correlated pairs by descending correlation
+  correlated_pairs <- correlated_pairs[order(-correlated_pairs$abs_corr), ]
+
+  removed_features <- character(0)  # set of removed features
+
+  # Remove features with lower variance in each correlated pair
+  for (row_idx in seq_len(nrow(correlated_pairs))) {
+    feature1 <- correlated_pairs$feature1[row_idx]
+    feature2 <- correlated_pairs$feature2[row_idx]
+
+    # Skip if already removed
+    if (feature1 %in% removed_features || feature2 %in% removed_features) {
+      next
+    }
+
+    # Compare variances
+    v1 <- var(df[[feature1]], na.rm = TRUE)
+    v2 <- var(df[[feature2]], na.rm = TRUE)
+
+    if (v1 > v2) {
+      removed_features <- c(removed_features, feature2)
+    } else {
+      removed_features <- c(removed_features, feature1)
+    }
+  }
+
+
+  # Return DataFrame with redundant features removed
+  df = df[, !(colnames(df) %in% removed_features), drop = FALSE]
+  }
 
   # Filtered correlation matrix
-  corr_filtered <- cor(df_filtered, use = "complete.obs")
+  corr_filtered <- cor(df, use = "pairwise.complete.obs")
+
+  if(!is.null(treatment_label)){
+    df$Class = treatment_label
+  }
 
   list(
-    filtered_data = df_filtered,
-    corr_original = corr_original,
+    filtered_data = df,
+    corr_original = cor_mat,
     corr_filtered = corr_filtered
   )
+
 }
-
-
-#' Perform UMAP Analysis
-#'
-#' Standardizes features and computes UMAP projection for 2D visualization.
-#'
-#' @param df Data frame with numeric features.
-#' @param n_neighbors Integer. Number of neighbors for UMAP (default 20).
-#' @param min_dist Numeric. Minimum distance for UMAP (default 1).
-#' @param metric Character. Distance metric for UMAP (default "correlation").
-#' @param seed Integer. Random seed for reproducibility (default 42).
-#'
-#' @return List containing:
-#'   \describe{
-#'     \item{umap_coords}{Data frame with UMAP1 and UMAP2 coordinates}
-#'     \item{scaler}{Scaling model for standardization}
-#'     \item{umap_model}{Fitted UMAP model}
-#'   }
-#'
-#' @examples
-#' \dontrun{
-#'   result <- perform_umap_analysis(df_filtered)
-#'   umap_df <- result$umap_coords
-#' }
-#'
-#' @export
-#' @import uwot
-perform_umap_analysis <- function(df, n_neighbors = 20, min_dist = 1,
-                                   metric = "correlation", seed = 42) {
-  # Standardize
-  df_scaled <- scale(df)
-
-  # UMAP
-  set.seed(seed)
-  umap_result <- uwot::umap(df_scaled,
-    n_neighbors = n_neighbors,
-    min_dist = min_dist,
-    metric = metric
-  )
-
-  umap_coords <- as.data.frame(umap_result$layout)
-  colnames(umap_coords) <- c("UMAP1", "UMAP2")
-
-  list(
-    umap_coords = umap_coords,
-    scaler = list(center = attr(df_scaled, "scaled:center"),
-                  scale = attr(df_scaled, "scaled:scale")),
-    umap_model = umap_result
-  )
-}
-
-
-#' Leiden Clustering with Resolution Optimization
-#'
-#' Tests multiple resolution parameters for Leiden clustering and
-#' computes clustering quality metrics (silhouette, DBI, modularity).
-#'
-#' @param umap_model UMAP model object (from perform_umap_analysis).
-#' @param umap_coords Data frame with UMAP coordinates.
-#' @param data_scaled Scaled feature matrix.
-#' @param resolution_range Numeric vector. Range of resolutions to test (default 0.0001-0.1).
-#' @param n_resolutions Integer. Number of resolution values to test (default 50).
-#' @param optimal_resolution Numeric. Which resolution to use for final clustering
-#'                           (if NULL, user should choose based on metrics).
-#' @param seed Integer. Random seed for reproducibility (default 42).
-#'
-#' @return List containing:
-#'   \describe{
-#'     \item{resolutions}{Resolution values tested}
-#'     \item{silhouette_scores}{Silhouette scores for each resolution}
-#'     \item{dbi_scores}{Davies-Bouldin Index scores}
-#'     \item{modularity_scores}{Modularity scores}
-#'     \item{num_clusters}{Number of clusters for each resolution}
-#'     \item{clusters}{Final cluster assignments (if optimal_resolution specified)}
-#'     \item{partition}{igraph partition object for final clustering}
-#'   }
-#'
-#' @details
-#' Silhouette Score: Higher is better (-1 to 1, max is 1)
-#' DBI Score: Lower is better (0 to infinity, min is 0)
-#' Modularity: Higher is better (0 to 1, max is 1)
-#'
-#' @examples
-#' \dontrun{
-#'   result <- leiden_clustering_optimization(
-#'     umap_model, umap_coords, data_scaled,
-#'     optimal_resolution = 0.004
-#'   )
-#'   clusters <- result$clusters
-#' }
-#'
-#' @export
-#' @import FNN igraph cluster leiden
-leiden_clustering_optimization <- function(umap_model, umap_coords, data_scaled,
-                                            resolution_range = c(0.0001, 0.1),
-                                            n_resolutions = 50,
-                                            optimal_resolution = NULL,
-                                            seed = 42) {
-  # Create graph from UMAP
-  # Extract distances and build graph
-  # For simplicity, use k-nearest neighbors graph
-  k <- 20
-  knn_graph <- FNN::get.knn(umap_coords, k = k)$nn.index
-
-  # Convert to edge list
-  edges <- list()
-  for (i in seq_len(nrow(knn_graph))) {
-    for (j in knn_graph[i, ]) {
-      edges[[length(edges) + 1]] <- c(i - 1, j - 1) # 0-indexed for igraph
-    }
-  }
-
-  g <- igraph::graph_from_edgelist(do.call(rbind, edges), directed = FALSE)
-  g <- igraph::simplify(g)
-
-  # Test resolutions
-  resolutions <- seq(resolution_range[1], resolution_range[2], length.out = n_resolutions)
-
-  silhouette_scores <- c()
-  dbi_scores <- c()
-  modularity_scores <- c()
-  num_clusters <- c()
-
-  set.seed(seed)
-
-  for (res in resolutions) {
-    partition <- leiden::leiden(g, resolution_parameter = res)
-
-    labels <- as.numeric(partition) - 1 # Convert to 0-indexed
-
-    n_clust <- length(unique(labels))
-    num_clusters <- c(num_clusters, n_clust)
-
-    # Modularity
-    modularity_scores <- c(modularity_scores, igraph::modularity(g, labels + 1))
-
-    # Silhouette and DBI
-    if (n_clust > 1) {
-      sil_score <- cluster::silhouette(labels, dist(data_scaled))[, "sil_width"]
-      silhouette_scores <- c(silhouette_scores, mean(sil_score))
-
-      dbi_score <- clusterCrit::intCriteria(data_scaled, labels + 1, "davies_bouldin")[[1]]
-      dbi_scores <- c(dbi_scores, dbi_score)
-    } else {
-      silhouette_scores <- c(silhouette_scores, -1)
-      dbi_scores <- c(dbi_scores, Inf)
-    }
-  }
-
-  result <- list(
-    resolutions = resolutions,
-    silhouette_scores = silhouette_scores,
-    dbi_scores = dbi_scores,
-    modularity_scores = modularity_scores,
-    num_clusters = num_clusters
-  )
-
-  # If optimal resolution specified, compute final clusters
-  if (!is.null(optimal_resolution)) {
-    set.seed(seed)
-    final_partition <- leiden::leiden(g, resolution_parameter = optimal_resolution)
-    result$clusters <- as.numeric(final_partition) - 1
-    result$partition <- final_partition
-  }
-
-  result
-}
-
 
 #' Analyze Subpopulation Proportions
 #'
@@ -519,6 +334,137 @@ statistical_test_clusters <- function(df_features,
   )
 }
 
+#' Cluster-wise feature statistics using Mann-Whitney tests
+#'
+#' This function performs statistical comparisons of feature distributions
+#' between clusters and summarizes the results in an Excel file and dot plots.
+#' For each feature, pairwise Mann-Whitney (Wilcoxon rank-sum) tests are
+#' computed between clusters.
+#'
+#' When there are only two clusters, a single Mann-Whitney test is performed
+#' per feature without multiple-testing correction. When there are more than
+#' two clusters, all pairwise comparisons are performed and p-values are
+#' adjusted using Bonferroni correction.
+#'
+#' The function also generates a dot plot:
+#' \itemize{
+#'   \item Color encodes the fold change (difference of medians) between clusters.
+#'   \item Point size encodes the statistical significance (-log10(p-value)).
+#' }
+#'
+#' @param reduced_df A \code{data.frame} containing numeric features and
+#'   cluster assignments. By default, the function assumes that the last two
+#'   columns are \code{Clusters} and \code{Conditions}, and all preceding
+#'   columns are numeric features.
+#'
+#' @return Invisibly returns a \code{data.frame} containing all statistical
+#'   results (one row per feature and pair of clusters). The Excel file is
+#'   written to disk and the dot plots are printed to the active graphics device.
+#'
+#' @details
+#' The function internally:
+#' \enumerate{
+#'   \item Determines the number of clusters from the \code{Clusters} column
+#'   \item Uses all columns except the last two in \code{reduced_df} as
+#'         features.
+#'   \item For 2 clusters: performs one Mann-Whitney test per feature and
+#'         reports p-values and fold changes.
+#'   \item For more than 2 clusters: performs all pairwise Mann-Whitney tests
+#'         per feature, applies Bonferroni correction, and indicates which
+#'         comparisons are significant.
+#'   \item Produces a dot plot summarizing the results:
+#'         \itemize{
+#'           \item Two clusters: size = -log10(raw p-value), color = fold change.
+#'           \item More than two clusters: size = -log10(corrected p-value),
+#'                 color = fold change.
+#'         }
+#' }
+#'
+#' @import rstatix
+#' @import ggplot2
+#' @import dplyr
+#' @export
+
+cluster_feature_stats <- function(reduced_df) {
+
+  lapply(colnames(reduced_df %>% select(-Condition, -Clusters)), function(feature) {
+    #### STATISTICAL TEST ####
+    # Perform pairwise Wilcoxon test (Mann-Whitney U test)
+    test_results <- reduced_df %>%
+      rstatix::wilcox_test(as.formula(paste(feature, "~ Clusters")), alternative = "two.sided", exact = FALSE) %>%
+      rstatix::adjust_pvalue(method = "bonferroni") %>% # Adjust for multiple testing
+      mutate(Significant = ifelse(p.adj < 0.05, "*", "ns"))  # Mark significance
+
+    # Compute median differences for each pair
+    cluster_medians <- reduced_df %>%
+      mutate(Clusters = as.character(Clusters)) %>%
+      group_by(Clusters) %>%
+      summarise(median_val = median(!!sym(feature)) )
+
+    test_results <- test_results %>%
+      left_join(cluster_medians, by = c("group1" = "Clusters")) %>%
+      rename(median1 = median_val) %>%
+      left_join(cluster_medians, by = c("group2" = "Clusters")) %>%
+      rename(median2 = median_val) %>%
+      mutate(Fold_Change = median1 - median2)
+
+    SM_final <- test_results %>%
+      mutate(Size = ifelse(p.adj <= 0.05, pmin(-log10(p.adj), 20), NA))
+
+    SM_final$Color <- scales::col_numeric(
+      palette = colorRampPalette(c("#997FD2", "#F3A341"))(100),
+      domain = range(SM_final$Fold_Change, na.rm = TRUE)
+    )(SM_final$Fold_Change)
+    SM_final$Feature = feature
+
+    SM_final$Cluster_pairs = paste0(SM_final$group1," vs ",SM_final$group2)
+    SM_final
+  }) -> StatList
+
+  SM_final = do.call(rbind, StatList)
+  SM_final$neg_log10_p <- -log10(SM_final$p.adj)
+  SM_final$Significant <- SM_final$p.adj < 0.05
+
+  vmin <- min(SM_final$Fold_Change, na.rm = TRUE)
+  vmax <- max(SM_final$Fold_Change, na.rm = TRUE)
+
+  size_legend_values <- c(1.5, 2.5, 5, 7.5, 10)
+
+  # Keep only significant comparisons for plotting
+  df_significant <- dplyr::filter(SM_final, Significant)
+
+    # Dot plot for multiple clusters
+    p <- ggplot(df_significant,
+                aes(x = Cluster_pairs, y = Feature)) +
+      geom_point(
+        aes(size = neg_log10_p, fill = Fold_Change),
+        shape = 21, color = "black", alpha = 0.75
+      ) +
+      scale_size_continuous(
+        range = c(3, 20),
+        breaks = size_legend_values,
+        name = "-log10(p)"
+      ) +
+      scale_fill_gradient2(
+        low = "blue", mid = "white", high = "green",
+        midpoint = 0,
+        limits = c(vmin, vmax),
+        name = "Median difference"
+      ) +
+      labs(
+        x = "Cluster pairs",
+        y = "Feature",
+        title = "Dot plot of Features vs Cluster Pairs"
+      ) +
+      theme_minimal() +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "right"
+      )
+
+  # Return the full statistics table invisibly
+  return( list(SM_final = SM_final, plot =p) )
+}
 
 #' Feature Importance Analysis using Random Forest
 #'
@@ -545,12 +491,15 @@ statistical_test_clusters <- function(df_features,
 #'   result <- feature_importance_analysis(df_with_clusters)
 #'   importance_mat <- result$importance_matrix
 #' }
-#'
+#' @import tidyr
+#' @import dplyr
+#' @import ggplot2
+#' @import randomForest
 #' @export
 feature_importance_analysis <- function(df_features,
-                                         clusters_col = "Clusters",
-                                         n_trees = 100,
-                                         seed = 42) {
+                                        clusters_col = "Clusters",
+                                        n_trees = 100,
+                                        seed = 42) {
   set.seed(seed)
 
   # Extract features and clusters
@@ -583,12 +532,35 @@ feature_importance_analysis <- function(df_features,
 
   # Create importance matrix
   importance_matrix <- as.data.frame(do.call(rbind, feature_importances))
+  CLsums = apply(importance_matrix,1,sum)
+  for(i in 1:nrow(importance_matrix)) importance_matrix[i,] = importance_matrix[i,]/CLsums[i]
+
   colnames(importance_matrix) <- colnames(X)
   rownames(importance_matrix) <- cluster_labels
+
+  importance_df = importance_matrix %>%
+    dplyr::mutate(Clusters = gsub(pattern = "C",replacement = "",x = row.names(importance_matrix))) %>%
+    tidyr::gather(-Clusters, key = "Feature", value = "Importance")
+
   importance_matrix <- as.matrix(importance_matrix)
+
+  ImportancePLot = ggplot(importance_df, aes(x = Feature, y = Clusters, fill = Importance)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = sprintf("%.2f", Importance)),   # format with 2 decimals
+              color = "black", size = 3) +
+    scale_fill_gradient(low = "white", high = "black",limits = c(0,1)) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          legend.position = "right") +
+    labs(title = "Feature Importance Heatmap",
+         x = "Feature",
+         y = "Cluster",
+         fill = "Importance")
+
 
   list(
     importance_matrix = importance_matrix,
+    plot = ImportancePLot,
     model_stats = list(
       n_clusters = n_clusters,
       n_features = ncol(X),
@@ -598,50 +570,5 @@ feature_importance_analysis <- function(df_features,
 }
 
 
-#' Subpopulation Fingerprints
-#'
-#' Computes mean feature values for each subpopulation to create
-#' a fingerprint profile.
-#'
-#' @param df_features Data frame with features and cluster assignments.
-#' @param clusters_col Character. Name of cluster column.
-#'
-#' @return List containing:
-#'   \describe{
-#'     \item{fingerprint_matrix}{Mean feature values per cluster}
-#'     \item{summary_stats}{Summary statistics per cluster}
-#'   }
-#'
-#' @examples
-#' \dontrun{
-#'   result <- subpopulation_fingerprints(df_with_clusters)
-#'   fingerprint_mat <- result$fingerprint_matrix
-#' }
-#'
-#' @export
-subpopulation_fingerprints <- function(df_features,
-                                        clusters_col = "Clusters") {
-  # Extract features
-  feature_cols <- colnames(df_features)[colnames(df_features) != clusters_col]
-  clusters <- df_features[[clusters_col]]
 
-  # Compute mean per cluster
-  fingerprint_list <- list()
 
-  for (cluster_id in sort(unique(clusters))) {
-    cluster_data <- df_features[clusters == cluster_id, feature_cols]
-    means <- colMeans(cluster_data, na.rm = TRUE)
-    fingerprint_list[[as.character(cluster_id)]] <- means
-  }
-
-  fingerprint_matrix <- do.call(rbind, fingerprint_list)
-
-  list(
-    fingerprint_matrix = fingerprint_matrix,
-    summary_stats = list(
-      n_clusters = nrow(fingerprint_matrix),
-      n_features = ncol(fingerprint_matrix),
-      mean_values = colMeans(fingerprint_matrix, na.rm = TRUE)
-    )
-  )
-}

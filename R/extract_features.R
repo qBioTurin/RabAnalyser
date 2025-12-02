@@ -95,7 +95,7 @@
 #' }
 #'
 #' @export
-
+#' @import processx
 extract_features <- function(root_dir,
                             min_spot_size = 8,
                             neighbor_radius = 15,
@@ -196,8 +196,7 @@ extract_features <- function(root_dir,
   cat("  rab_folder:", rab_folder, "\n")
   cat("  spot_folder:", spot_folder, "\n\n")
 
-  venv_python <- system.file("python/rabanalyser-venv/bin/python",
-                             package = "RabAnalyser")
+  venv_python <- reticulate::virtualenv_python("rabanalyser-venv")
 
   # Use processx::run for synchronous execution with real-time output
   result <- tryCatch({

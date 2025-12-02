@@ -1,153 +1,94 @@
 
-debug(extract_features)
-results <- extract_features("~/Desktop/SimoeTealdiDATA/Images/",
+results <- RabAnalyser::extract_features("../ProvaIntera/Input_step1/",
                             min_spot_size = 8,
                             neighbor_radius = 15,
-                            n_jobs = 2)
+                            n_jobs = 15,
+                            spot_folder = "rab5_mask",
+                            nucleus_folder = "nucleus_mask",
+                            cell_folder = "cell_mask",
+                            rab_folder = "Rab5"
+                          )
 
 ##### START: SC_KS_singlePopulation #####
 
 library(readr)
-CET_Rab5 <- read_csv("~/Desktop/SimoeTealdiDATA/Images/CET_Rab5.csv")
-Vehicle_Rab5 <- read_csv("~/Desktop/SimoeTealdiDATA/Images/Vehicle_Rab5.csv")
+library(readxl)
+Reference_populationRab5_V2 <- read_excel("~/ProvaIntera/Input_step2/Reference_populationRab5_V2.xlsx")
+Reference_populationRab5_V2$ID_image = 1
+Reference_populationRab5_V2 = Reference_populationRab5_V2 %>% rename(Cell_label =`Cell label`)
+WK1 <- read_csv("~/ProvaIntera/Input_step1/WK1.csv")
 
-features <- colnames(Vehicle_Rab5)[-1]
-# 150 seconds
+features = colnames(WK1[,-(1:2)])
 
-
-df = RabAnalyser::perform_ks_analysis(ctrl_matrix = CET_Rab5,
-                                      comp_matrix = Vehicle_Rab5,
+df_WK1 = RabAnalyser::perform_ks_analysis(ctrl_matrix = Reference_populationRab5_V2,
+                                      comp_matrix = WK1,
                                       features,
-                                      cores = 2)
+                                      cores = 10)
+write_csv(df_WK1,file = "../ProvaIntera/PerniceResults/WK1_step2.csv")
 
-profvis::profvis(RabAnalyser::perform_ks_analysis(ctrl_matrix = ctrl[ctrl[,1] %in% 1:150, ],
-                                                  comp_matrix = comp[comp[,1] %in% 1:50,],
-                                                  features,cores = 1))
+FPW1 <- read_csv("~/ProvaIntera/Input_step1/FPW1.csv")
+df_FPW1 = RabAnalyser::perform_ks_analysis(ctrl_matrix = Reference_populationRab5_V2,
+                                          comp_matrix = FPW1,
+                                          features,
+                                          cores = 10)
+write_csv(df_FPW1,file = "../ProvaIntera/PerniceResults/FPW1_step2.csv")
 
-##### END: SC_KS_singlePopulation #####
+JK2 <- read_csv("~/ProvaIntera/Input_step1/JK2.csv")
+df_JK2 = RabAnalyser::perform_ks_analysis(ctrl_matrix = Reference_populationRab5_V2,
+                                          comp_matrix = JK2,
+                                          features,
+                                          cores = 10)
+write_csv(df_JK2,file = "../ProvaIntera/PerniceResults/JK2_step2.csv")
 
-write.csv(df, "~/Desktop/SimoeTealdiDATA/Images/Vehicle_vs_CET_Rab5_KS.csv", row.names = FALSE)
+
 
 ##### START: SC_MultipleCNDTN_Analysis (Single-Cell Subpopulation Analysis) #####
 
 # PHASE 1: Load & Preprocess
 # Function 1: Load data and apply soft-threshold denoising
-result <- load_and_preprocess_features(
-  "~/Desktop/SimoeTealdiDATA/Images/Vehicle_vs_CET_Rab5_KS.csv",
-  qalpha = 0.10, 
-  gamma = 0.05
-)
-df <- result$data
-labels <- result$labels
+df <- read_excel("~/ProvaIntera/Input_step3/GlioCells_KSvaluesRab5WholeRef_V2.xlsx")
 
 # PHASE 2: Feature Selection
 # Function 2: Filter correlated features
-resultCorr <- filter_correlated_features(result$data, threshold = 0.7)
-df_filtered <- resultCorr$filtered_data
+resultCorr <- RabAnalyser::filter_correlated_features(df, threshold = 0.7)
 
 # Function 3 (Visualization): Plot correlation matrices
-plot_correlation_matrix(resultCorr$corr_original, title = "Correlation Matrix - Original Features")
-plot_correlation_matrix(resultCorr$corr_filtered, title = "Correlation Matrix - Filtered Features")
+RabAnalyser::plot_correlation_matrix(resultCorr$corr_original, title = "Correlation Matrix - Original Features")
+RabAnalyser::plot_correlation_matrix(resultCorr$corr_filtered, title = "Correlation Matrix - Filtered Features")
 
-# PHASE 3: Dimensionality Reduction
-# Function 4: Perform UMAP analysis
-umap_result <- perform_umap_analysis(
-  resultCorr$filtered_data, 
-  n_neighbors = 20, 
-  min_dist = 1,
-  metric = "correlation"
-)
-umap_coords <- umap_result$umap_coords
+# PHASE 3: Leiden Clustering Optimization
+write.csv(file = "../ProvaIntera/PerniceResults/FilteredData.csv", x = resultCorr$filtered_data,row.names = F)
 
-# Function 5 (Visualization): Plot UMAP by condition
-plot_umap_conditions(umap_result$umap_coords, result$labels)
-
-# PHASE 4: Leiden Clustering Optimization
-# Function 6: Optimize Leiden resolution
-leiden_result <- leiden_clustering_optimization(
-  umap_result$umap_model,
-  umap_result$umap_coords,
-  scale(resultCorr$filtered_data),
-  resolution_range = c(0.0001, 0.1),
-  n_resolutions = 50,
-  optimal_resolution = 0.004
+results <- RabAnalyser::run_umap_leiden(
+  data_path = "../ProvaIntera/PerniceResults/FilteredData.csv",
+  n_neighbors = 15,
+  min_dist = 0.1,
+  resolution = 0.42,
+  n_bootstrap = 100
 )
 
-# Function 7 (Visualization): Plot clustering metrics
-plot_leiden_metrics(leiden_result, output_dir = ".")
+RabAnalyser::plot_resolution_scan(results$resolution_scan)
+RabAnalyser::plot_cluster_stability(results$stability)
+RabAnalyser::plot_umap(results$umap_df, color_by = "Cluster",discrete = T)
+RabAnalyser::plot_umap(results$umap_df, color_by = "Class")
 
-# Function 8 (Visualization): Plot UMAP with clusters
-plot_umap_clusters(
-  umap_result$umap_coords, 
-  leiden_result$clusters,
-  save_path = "UMAP_clusters.png"
-)
 
-# PHASE 5: Cluster Characterization
-# Prepare data with clusters and conditions
-df_with_clusters <- resultCorr$filtered_data
-df_with_clusters$Clusters <- leiden_result$clusters
-df_with_clusters$Condition <- result$labels
+df_features = resultCorr$filtered_data %>% rename(Condition = Class) %>% mutate(Clusters = results$umap_df$Cluster)
 
-# Function 9: Analyze subpopulation proportions
-prop_result <- analyze_subpopulation_proportions(df_with_clusters)
+result <- RabAnalyser::analyze_subpopulation_proportions(df_features)
+RabAnalyser::plot_clusters_proportions(df_features)
 
-# Function 10 (Visualization): Plot proportions
-plot_subpopulation_proportions(
-  prop_result$proportions,
-  save_path = "proportions.png"
-)
+### FEATURES VALUES VISUALIZATION IN UMAP ###
+umap_res = cbind(results$umap_df, resultCorr$filtered_data %>% select(-Class))
+RabAnalyser::plot_umap(umap_res, color_by = "size",high_color = "#228B22",values_interval = c(-.5,.5))
+RabAnalyser::plot_umap(umap_res, color_by = "MeanInt",high_color = "#228B22",values_interval = c(-.5,.5))
 
-# PHASE 6: Statistical Feature Analysis
-# Function 11: Perform Mann-Whitney U tests
-stat_result <- statistical_test_clusters(
-  df_with_clusters,
-  clusters_col = "Clusters",
-  correction = "fdr"
-)
+### STATISTICAL TEST  ###
+statsRes = RabAnalyser::cluster_feature_stats(df_features)
+statsRes$plot
 
-# Function 12 (Visualization): Plot statistical results
-plot_statistical_results(
-  stat_result$results,
-  save_path = "statistics.png"
-)
+fingerprintRes = RabAnalyser::ks_cluster_fingerprint_heatmap(df_features,values_interval = c(-0.3, 0.3),midpoint_val = 0 )
+fingerprintRes$plot
 
-# PHASE 7: Feature Value Visualization
-# Function 13 (Visualization): Visualize features on UMAP
-visualize_feature_values_umap(
-  umap_result$umap_coords,
-  resultCorr$filtered_data,
-  output_dir = ".",
-  save_plots = TRUE,
-  vmin = -0.4,
-  vmax = 0.4
-)
-
-# PHASE 8: Feature Importance Analysis
-# Function 14: Compute Random Forest importance
-importance_result <- feature_importance_analysis(
-  df_with_clusters,
-  clusters_col = "Clusters",
-  n_trees = 100
-)
-
-# Function 15 (Visualization): Plot importance heatmap
-plot_feature_importance(
-  importance_result$importance_matrix,
-  save_path = "feature_importance.png"
-)
-
-# PHASE 9: Subpopulation Fingerprints
-# Function 16: Compute fingerprints
-fingerprint_result <- subpopulation_fingerprints(
-  df_with_clusters,
-  clusters_col = "Clusters"
-)
-
-# Function 17 (Visualization): Plot fingerprints
-plot_fingerprints(
-  fingerprint_result$fingerprint_matrix,
-  save_path = "fingerprints.png"
-)
-
-##### END: SC_MultipleCNDTN_Analysis #####
+importanceRes = RabAnalyser::feature_importance_analysis(df_features %>% select(-Condition))
+importanceRes$plot

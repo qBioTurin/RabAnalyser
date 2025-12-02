@@ -12,14 +12,29 @@
 perform_ks_analysis <- function(ctrl_matrix, comp_matrix, features, cores = NULL) {
   if(is.null(cores)) cores = max(parallel::detectCores() - 1, 1)
 
+  ctrl_matrix = ctrl_matrix %>% group_by(ID_image) %>%
+    mutate(Cell_label_global = abs(c(1, diff(Cell_label) ) ) )  %>%
+    ungroup( ) %>%
+    mutate(Cell_label_global = cumsum(Cell_label_global)) %>%
+    select(-ID_image,-Cell_label) %>%
+    relocate(Cell_label_global)
+
+  comp_matrix = comp_matrix %>% group_by(ID_image) %>%
+    mutate(Cell_label_global = abs(c(1, diff(Cell_label) ) ) )  %>%
+    ungroup( ) %>%
+    mutate(Cell_label_global = cumsum(Cell_label_global)) %>%
+    select(-ID_image,-Cell_label) %>%
+    relocate(Cell_label_global)
+
   ctrl <- RabAnalyser::cleaning(ctrl_matrix)
   comp <- RabAnalyser::cleaning(comp_matrix)
-  colnames(ctrl) <- names(comp) <- c("id", features)
+  colnames(ctrl) <- names(comp) <- c("Cell_label", features)
 
   ecdf1List <- lapply(features, function(n) ecdf(ctrl[, n]))
   names(ecdf1List) <- features
 
   Mcomp <- max(comp[, 1])
+
   comp_groups <- split(comp, comp[, 1])
 
   compute_ks <- function(i) {

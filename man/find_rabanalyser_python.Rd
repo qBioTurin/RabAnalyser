@@ -5,17 +5,14 @@
 \title{Locate Python executable for RabAnalyser}
 \usage{
 find_rabanalyser_python(
-  envname = getOption("RabAnalyser.python.envname", "rabanalyser-venv"),
-  create = TRUE,
+  envname = "rabanalyser-venv",
+  update = FALSE,
   python = NULL
 )
 }
 \arguments{
 \item{envname}{Character scalar giving the virtualenv name. Defaults to the
 value of `getOption("RabAnalyser.python.envname", "rabanalyser-venv")`.}
-
-\item{create}{Logical flag; when `TRUE` (default) the environment is created
-and populated if it does not already exist.}
 
 \item{python}{Optional path to a base Python executable used when creating
 the virtualenv.}

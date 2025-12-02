@@ -2,7 +2,7 @@
 % Please edit documentation in R/extract_features.R
 \name{extract_features}
 \alias{extract_features}
-\title{Extract Rab Spot Features from a Folder (Pure R Implementation)}
+\title{Extract Rab Spot Features from a Folder (Python Backend via processx)}
 \usage{
 extract_features(
   root_dir,
@@ -30,10 +30,8 @@ Default is 15 pixels (considering typical endosome size ~500-1000 nm).}
 \item{conditions}{Character vector. Specific experimental conditions to process.
 If NULL, all folders in root_dir are processed. Default is NULL.}
 
-\item{python_path}{Character. Path to a Python executable to use. If NULL the helper
-`find_rabanalyser_python()` provisions and returns the package's
-managed virtualenv interpreter. Only used when
-`use_python = TRUE`.}
+\item{python_path}{Character. Path to a Python executable to use. If NULL, uses the
+package's managed virtualenv. Default is NULL.}
 
 \item{nucleus_folder}{Character. Name of nucleus mask subfolder. Default "nucleus_mask".}
 
@@ -46,49 +44,49 @@ managed virtualenv interpreter. Only used when
 \item{n_jobs}{Integer. Number of parallel workers for image processing. If NULL,
 uses `parallel::detectCores() - 2` (minimum 1). Set to 1 for
 serial processing.}
-
-\item{use_python}{Logical. If TRUE the Python backend will be used via \pkg{reticulate}
-(a managed virtualenv is created on-demand). If FALSE the pure R
-implementation is used. Default is FALSE.}
 }
 \value{
 A list of data frames, one for each condition, containing extracted features:
   \describe{
-    \item{cell_id}{ID of the cell analyzed}
-    \item{area}{Area of Rab spot in pixels}
-    \item{integral_intensity}{Sum of pixel intensities within spot}
-    \item{mean_intensity}{Mean pixel intensity within spot}
-    \item{circularity}{Shape circularity measure (0-1, where 1 is perfect circle)}
-    \item{eccentricity}{Eccentricity of spot (0-1)}
-    \item{elongation}{Ratio of major to minor axis}
-    \item{dist_nucleus_centroid}{Distance from nucleus centroid (normalized by Feret's diameter)}
-    \item{dist_nucleus_outline}{Distance from nucleus outline (normalized by Feret's diameter)}
-    \item{dist_plasma_membrane}{Distance from cell plasma membrane (normalized by Feret's diameter)}
-    \item{dist_nearest_spot}{Distance to nearest neighboring spot (normalized by Feret's diameter)}
-    \item{num_neighbors}{Number of neighboring spots within radius}
+    \item{Cell_label}{ID of the cell analyzed}
+    \item{size}{Area of Rab spot in pixels}
+    \item{IntegInt}{Sum of pixel intensities within spot}
+    \item{MeanInt}{Mean pixel intensity within spot}
+    \item{Circ}{Circularity measure (0-1, where 1 is perfect circle)}
+    \item{Ecc}{Eccentricity of spot (0-1)}
+    \item{Elo}{Ratio of major to minor axis}
+    \item{NucleusDist}{Distance from nucleus centroid (normalized by Feret's diameter)}
+    \item{NucleusDistOut}{Distance from nucleus outline (normalized by Feret's diameter)}
+    \item{PMDist}{Distance from cell plasma membrane (normalized by Feret's diameter)}
+    \item{DNN}{Distance to nearest neighboring spot (normalized by Feret's diameter)}
+    \item{No}{Number of neighboring spots within radius}
   }
-  Each data frame is also saved as an Excel file in the root_dir.
+  Each data frame is also saved as a CSV file in the root_dir.
 }
 \description{
 This function performs automated feature extraction from TIFF microscopy images
-within a specified folder using pure R code. It processes nucleus masks, cell masks,
-Rab raw signals, and spot masks to extract morphological and spatial features of Rab spots.
+within a specified folder by calling Python as a subprocess. It processes nucleus masks,
+cell masks, Rab raw signals, and spot masks to extract morphological and spatial
+features of Rab spots using true multiprocessing with the loky backend.
 }
 \details{
 The function expects a folder structure with subdirectories:
 \describe{
   \item{nucleus_mask/}{Folder containing nucleus mask TIFF images}
   \item{cell_mask/}{Folder containing cell mask TIFF images}
-  \item{spots/}{Folder containing raw Rab signal TIFF images}
-  \item{spot_mask/}{Folder containing Rab spot mask TIFF images}
+  \item{rab5/}{Folder containing raw Rab signal TIFF images}
+  \item{rab5_mask/}{Folder containing Rab spot mask TIFF images}
 }
 
 
 
-When `use_python = TRUE`, \pkg{reticulate} is used to configure a dedicated
-virtual environment (named `"rabanalyser-venv"` by default) based on the
-dependency list in `inst/python/requirements.txt`, then calls the packaged
-`feature_extraction_wrapper.py` module directly.
+This function spawns a Python subprocess using \pkg{processx} that runs the packaged
+`feature_extraction_wrapper.py` script. A dedicated virtual environment
+(named `"rabanalyser-venv"` by default) is created on-demand if needed,
+based on the dependency list in `inst/python/requirements.txt`.
+
+The Python backend uses joblib with the loky multiprocessing backend,
+which provides true parallelism for CPU-bound operations.
 
 All distance measures are normalized by Feret's diameter (longest distance across
 the cell's convex hull) for scale-invariant comparisons.

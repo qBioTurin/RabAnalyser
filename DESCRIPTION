@@ -33,4 +33,10 @@ Imports:
   httpuv,
   R.matlab,
   reticulate,
-  processx
+  processx,
+  FNN,
+  caret,
+  igraph,
+  uwot,
+  randomForest,
+  leiden
