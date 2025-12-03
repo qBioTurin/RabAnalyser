@@ -96,6 +96,7 @@
 #'
 #' @export
 #' @import processx
+#' @import reticulate
 extract_features <- function(root_dir,
                             min_spot_size = 8,
                             neighbor_radius = 15,
@@ -145,10 +146,6 @@ extract_features <- function(root_dir,
                                       rab_folder = "rab5",
                                       spot_folder = "rab5_mask",
                                       n_jobs = 1) {
-
-  if (!requireNamespace("processx", quietly = TRUE)) {
-    stop("The 'processx' package is required. Install it with install.packages('processx').")
-  }
 
   # Locate packaged Python script
   script_path <- system.file("python/feature_extraction_wrapper.py", package = "RabAnalyser")

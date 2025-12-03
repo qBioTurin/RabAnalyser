@@ -22,6 +22,8 @@
 #'   }
 #' @export
 #' @import processx
+#' @import reticulate
+#' @import tools
 #'
 run_umap_leiden <- function(data_path,
                             n_neighbors = 15,

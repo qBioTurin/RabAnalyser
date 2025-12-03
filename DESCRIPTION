@@ -18,6 +18,7 @@ Imports:
   ggplot2,
   ggthemes,
   dplyr,
+  tidyr,
   openxlsx,
   reshape2,
   fs,
@@ -31,12 +32,5 @@ Imports:
   shinyWidgets,
   xfun,
   httpuv,
-  R.matlab,
-  reticulate,
   processx,
-  FNN,
-  caret,
-  igraph,
-  uwot,
-  randomForest,
-  leiden
+  randomForest

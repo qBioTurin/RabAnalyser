@@ -15,6 +15,7 @@ rabanalyser_python_requirements <- function() {
 }
 
 
+#' Cleaning function to remove rows with missing values
 #'
 #' @param matrix A data frame or matrix.
 #'

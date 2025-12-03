@@ -18,5 +18,5 @@ rabanalyser.run()
 }
 }
 \author{
-Pernice Simone Tealdi Simone
+Pernice Simone, Tealdi Simone
 }
