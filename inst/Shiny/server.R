@@ -88,6 +88,33 @@ server <- function(input, output, session) {
   })
 
   # ========== STEP 2: KS ANALYSIS ==========
+  # Observer to load features when files are uploaded
+  observe({
+    req(input$comparison_files)
+
+    tryCatch({
+      # Load first comparison file to get available features
+      file_path <- input$comparison_files$datapath[1]
+      file_name <- input$comparison_files$name[1]
+
+      if (grepl("\\.csv$", file_name, ignore.case = TRUE)) {
+        comp_data <- readr::read_csv(file_path, show_col_types = FALSE)
+      } else {
+        comp_data <- readxl::read_excel(file_path)
+      }
+
+      # Get all feature names (excluding first 2 columns which are typically IDs)
+      available_features <- colnames(comp_data)[-(1:2)]
+
+      # Update selectizeInput with available features
+      updateSelectizeInput(session, "ks_selected_features",
+                          choices = available_features,
+                          selected = available_features)
+    }, error = function(e) {
+      # Silently fail if file can't be read
+      NULL
+    })
+  })
 
   observeEvent(input$run_ks, {
     req(input$reference_file, input$comparison_files)
@@ -117,8 +144,13 @@ server <- function(input, output, session) {
       ks_results_list <- list()
 
       for (i in seq_along(input$comparison_files$datapath)) {
-        comp_data <- read_csv(input$comparison_files$datapath[i])
-        features <- colnames(comp_data)[-(1:2)]
+        comp_data <- readr::read_csv(input$comparison_files$datapath[i], show_col_types = FALSE)
+        # Use selected features from the selectizeInput, or all if none selected
+        if (!is.null(input$ks_selected_features) && length(input$ks_selected_features) > 0) {
+          features <- input$ks_selected_features
+        } else {
+          features <- colnames(comp_data)[-(1:2)]
+        }
 
         ks_result <- RabAnalyser::perform_ks_analysis(
           ctrl_matrix = reference_data,

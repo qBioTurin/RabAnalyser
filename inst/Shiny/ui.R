@@ -241,6 +241,18 @@ cards <- list(
       ),
 
       tags$div(
+        class = "card",
+        style = "padding: 20px; margin-bottom: 25px; border: 2px solid #e3e6f0;",
+        tags$h5(icon("star"), "Available Features for Analysis", style = "color: #f5576c; margin-bottom: 15px;"),
+        tags$p(style = "color: #888; font-size: 0.9em;", icon("info-circle"), " Features will appear after uploading files"),
+        selectizeInput("ks_selected_features",
+                      tags$span(icon("check-circle"), "Select features to use:"),
+                      choices = NULL,
+                      multiple = TRUE,
+                      options = list(placeholder = "Upload files to see available features"))
+      ),
+
+      tags$div(
         class = "card bg-light",
         style = "padding: 20px; margin-bottom: 25px;",
         tags$h5(icon("sliders-h"), "Analysis Parameters", style = "color: #f5576c; margin-bottom: 15px;"),
