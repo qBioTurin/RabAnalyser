@@ -232,7 +232,7 @@ cards <- list(
           ),
           column(6,
                  fileInput("comparison_files",
-                          tags$span(icon("files-o"), "Experimental Conditions (CSV/Excel):"),
+                          tags$span(icon("database"), "Experimental Conditions (CSV/Excel):"),
                           accept = c(".csv", ".xlsx", ".xls"),
                           multiple = TRUE,
                           buttonLabel = tags$span(icon("folder-open"), "Browse..."))
