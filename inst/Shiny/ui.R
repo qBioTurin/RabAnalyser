@@ -193,6 +193,10 @@ cards <- list(
         tags$div(
           textOutput("extraction_status"),
           style = "font-size: 1.1em; font-weight: 500; margin-top: 15px;"
+        ),
+        tags$div(
+          style = "margin-top: 20px; background: #222; color: #eee; font-family: 'Fira Mono', 'Menlo', 'Monaco', monospace; padding: 18px; border-radius: 8px; min-height: 120px; max-height: 300px; overflow-y: auto; font-size: 1em;",
+          verbatimTextOutput("feature_console")
         )
       )
     )

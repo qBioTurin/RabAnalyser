@@ -14,10 +14,15 @@ server <- function(input, output, session) {
   )
   
   # ========== STEP 1: FEATURE EXTRACTION ==========
-  
+  # Console log for feature extraction
+  rv$feature_console_log <- character(0)
+  output$feature_console <- renderText({
+    paste(rv$feature_console_log, collapse = "\n")
+  })
+
   # Handle folder selection
   shinyDirChoose(input, "input_folder", roots = c(home = "~"))
-  
+
   observe({
     if (!is.null(input$input_folder)) {
       rv$input_folder_selected <- parseDirPath(roots = c(home = "~"), input$input_folder)
@@ -30,27 +35,54 @@ server <- function(input, output, session) {
       })
     }
   })
-  
+
   # Run feature extraction
   observeEvent(input$run_extraction, {
     req(rv$input_folder_selected)
-    
     output$extraction_status <- renderText("Running feature extraction...")
-    
+    rv$feature_console_log <- c("[INFO] Starting feature extraction...", rv$feature_console_log)
+    output$feature_console <- renderText({ paste(rv$feature_console_log, collapse = "\n") })
     tryCatch({
-      rv$features_data <- RabAnalyser::extract_features(
-        rv$input_folder_selected,
-        min_spot_size = input$min_spot_size,
-        neighbor_radius = input$neighbor_radius,
-        n_jobs = input$n_jobs,
-        spot_folder = input$spot_folder,
-        nucleus_folder = input$nucleus_folder,
-        cell_folder = input$cell_folder,
-        rab_folder = input$rab_folder
-      )
-      
+      rv$feature_console_log <- c("[INFO] Running RabAnalyser::extract_features()...", rv$feature_console_log)
+      output$feature_console <- renderText({ paste(rv$feature_console_log, collapse = "\n") })
+      # Stream output in real time
+      rv$features_data <- NULL
+      withCallingHandlers({
+        rv$features_data <- RabAnalyser::extract_features(
+          rv$input_folder_selected,
+          min_spot_size = input$min_spot_size,
+          neighbor_radius = input$neighbor_radius,
+          n_jobs = input$n_jobs,
+          spot_folder = input$spot_folder,
+          nucleus_folder = input$nucleus_folder,
+          cell_folder = input$cell_folder,
+          rab_folder = input$rab_folder
+        )
+      },
+      message = function(m) {
+        isolate({
+          rv$feature_console_log <- c(paste0("[MSG] ", m$message), rv$feature_console_log)
+          output$feature_console <- renderText({ paste(rv$feature_console_log, collapse = "\n") })
+        })
+      },
+      warning = function(w) {
+        isolate({
+          rv$feature_console_log <- c(paste0("[WARN] ", w$message), rv$feature_console_log)
+          output$feature_console <- renderText({ paste(rv$feature_console_log, collapse = "\n") })
+        })
+      },
+      error = function(e) {
+        isolate({
+          rv$feature_console_log <- c(paste0("[ERROR] ", e$message), rv$feature_console_log)
+          output$feature_console <- renderText({ paste(rv$feature_console_log, collapse = "\n") })
+        })
+      })
+      rv$feature_console_log <- c("[SUCCESS] Feature extraction completed!", rv$feature_console_log)
+      output$feature_console <- renderText({ paste(rv$feature_console_log, collapse = "\n") })
       output$extraction_status <- renderText("Feature extraction completed successfully!")
     }, error = function(e) {
+      rv$feature_console_log <- c(paste("[ERROR]", e$message), rv$feature_console_log)
+      output$feature_console <- renderText({ paste(rv$feature_console_log, collapse = "\n") })
       output$extraction_status <- renderText(paste("Error:", e$message))
     })
   })
