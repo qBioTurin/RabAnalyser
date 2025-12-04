@@ -10,6 +10,7 @@ library(ggplot2)
 library(dplyr)
 library(bslib)
 library(writexl)
+library(shinybusy)
 
 # Load RabAnalyser package
 library(RabAnalyser)
@@ -465,6 +466,16 @@ ui <- page_navbar(
     style = "font-weight: 600; font-size: 1.3em;"
   ),
   nav_spacer(),
+  
+  # Add global busy spinner
+  add_busy_spinner(
+    spin = "fading-circle",
+    position = "bottom-right",
+    color = "#764ba2",
+    margins = c(60, 60),
+    height = "100px",
+    width = "100px"
+  ),
   
   nav_panel(
     title = tags$span(icon("home"), "Home"),
