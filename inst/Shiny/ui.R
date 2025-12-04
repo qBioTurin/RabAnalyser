@@ -25,9 +25,9 @@ cards <- list(
       class = "bg-gradient-primary text-white",
       style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px;",
       tags$div(
-        tags$h1(icon("microscope", style = "font-size: 1.2em;"), "RabAnalyser Workflow", 
+        tags$h1(icon("microscope", style = "font-size: 1.2em;"), "RabAnalyser Workflow",
                 style = "margin-bottom: 10px; font-weight: 700;"),
-        tags$h4("Single-Cell Rab Protein Analysis Platform", 
+        tags$h4("Single-Cell Rab Protein Analysis Platform",
                 style = "font-weight: 300; opacity: 0.95;")
       )
     ),
@@ -37,7 +37,7 @@ cards <- list(
         style = "font-size: 1.1em; color: #555; margin-bottom: 30px;",
         "This application implements a complete three-step workflow for single-cell Rab protein analysis:"
       ),
-      
+
       # Step 1
       tags$div(
         class = "card mb-4",
@@ -45,7 +45,7 @@ cards <- list(
         tags$div(
           class = "card-body",
           tags$h3(
-            icon("image", class = "text-primary"), 
+            icon("image", class = "text-primary"),
             "Step 1: FEATURE EXTRACTION",
             style = "color: #667eea; font-weight: 600; margin-bottom: 15px;"
           ),
@@ -68,7 +68,7 @@ cards <- list(
           )
         )
       ),
-      
+
       # Step 2
       tags$div(
         class = "card mb-4",
@@ -76,7 +76,7 @@ cards <- list(
         tags$div(
           class = "card-body",
           tags$h3(
-            icon("chart-line", class = "text-danger"), 
+            icon("chart-line", class = "text-danger"),
             "Step 2: KS ANALYSIS",
             style = "color: #f5576c; font-weight: 600; margin-bottom: 15px;"
           ),
@@ -91,7 +91,7 @@ cards <- list(
           )
         )
       ),
-      
+
       # Step 3
       tags$div(
         class = "card mb-4",
@@ -99,7 +99,7 @@ cards <- list(
         tags$div(
           class = "card-body",
           tags$h3(
-            icon("project-diagram", class = "text-info"), 
+            icon("project-diagram", class = "text-info"),
             "Step 3: DATA CLUSTERING AND DOWNSTREAM ANALYSIS",
             style = "color: #38f9d7; font-weight: 600; margin-bottom: 15px;"
           ),
@@ -131,7 +131,7 @@ cards <- list(
       )
     )
   ),
-  
+
   # Step 1: Feature Extraction
   "step1_params" = card(
     full_screen = TRUE,
@@ -141,16 +141,16 @@ cards <- list(
     ),
     tags$div(
       style = "padding: 20px;",
-      tags$p(icon("info-circle"), "Extract 11 features from microscopy images containing segmentation masks and raw Rab images.", 
+      tags$p(icon("info-circle"), "Extract 11 features from microscopy images containing segmentation masks and raw Rab images.",
              style = "font-size: 1.05em; color: #555; margin-bottom: 25px;"),
-      
+
       tags$div(
         class = "card bg-light",
         style = "padding: 20px; margin-bottom: 25px;",
         tags$h5(icon("folder-open"), "Input Folder Selection", style = "color: #667eea; margin-bottom: 15px;"),
         fluidRow(
           column(6,
-                 shinyDirButton("input_folder", "Select Input Folder", "Choose folder", 
+                 shinyDirButton("input_folder", "Select Input Folder", "Choose folder",
                                style = "background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px;")
           ),
           column(6,
@@ -158,7 +158,7 @@ cards <- list(
           )
         )
       ),
-      
+
       tags$div(
         class = "card",
         style = "padding: 20px; margin-bottom: 25px; border: 2px solid #e3e6f0;",
@@ -169,7 +169,7 @@ cards <- list(
           column(4, numericInput("n_jobs", tags$span(icon("cogs"), "Number of Jobs:"), value = 4, min = 1))
         )
       ),
-      
+
       tags$div(
         class = "card",
         style = "padding: 20px; margin-bottom: 25px; border: 2px solid #e3e6f0;",
@@ -182,11 +182,11 @@ cards <- list(
           column(3, textInput("rab_folder", tags$span(icon("image"), "Rab Images:"), value = "Rab5"))
         )
       ),
-      
+
       tags$div(
         style = "text-align: center; margin-top: 30px;",
-        actionButton("run_extraction", 
-                    tags$span(icon("play-circle"), "Run Feature Extraction"), 
+        actionButton("run_extraction",
+                    tags$span(icon("play-circle"), "Run Feature Extraction"),
                     class = "btn-lg",
                     style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);"),
         tags$br(), tags$br(),
@@ -201,7 +201,7 @@ cards <- list(
       )
     )
   ),
-  
+
   # Step 2: KS Analysis
   "step2_params" = card(
     full_screen = TRUE,
@@ -211,37 +211,35 @@ cards <- list(
     ),
     tags$div(
       style = "padding: 20px;",
-      tags$p(icon("info-circle"), "Compare experimental conditions to a reference population using Kolmogorov-Smirnov statistic.", 
+      tags$p(icon("info-circle"), "Compare experimental conditions to a reference population using Kolmogorov-Smirnov statistic.",
              style = "font-size: 1.05em; color: #555; margin-bottom: 15px;"),
       tags$div(
         class = "alert alert-info",
         style = "background: #e3f2fd; border-left: 4px solid #2196F3;",
         icon("lightbulb"), strong(" Note:"), " The reference population file should be a concatenation of all experimental conditions (e.g., Reference_populationRab5_V2.xlsx)."
       ),
-      
+
       tags$div(
         class = "card",
         style = "padding: 20px; margin: 25px 0; border: 2px solid #e3e6f0;",
         tags$h5(icon("file-upload"), "File Upload", style = "color: #f5576c; margin-bottom: 20px;"),
         fluidRow(
           column(6,
-                 fileInput("reference_file", 
-                          tags$span(icon("database"), "Reference Population (Excel):"),
-                          accept = c(".xlsx", ".xls"),
-                          placeholder = "Reference_populationRab5_V2.xlsx",
+                 fileInput("reference_file",
+                          tags$span(icon("database"), "Reference Population (CSV/Excel):"),
+                          accept = c(".xlsx", ".xls",".csv"),
                           buttonLabel = tags$span(icon("folder-open"), "Browse..."))
           ),
           column(6,
-                 fileInput("comparison_files", 
+                 fileInput("comparison_files",
                           tags$span(icon("files-o"), "Experimental Conditions (CSV/Excel):"),
-                          accept = c(".csv", ".xlsx", ".xls"), 
+                          accept = c(".csv", ".xlsx", ".xls"),
                           multiple = TRUE,
-                          placeholder = "FPW1.csv, JK2.csv, WK1.csv...",
                           buttonLabel = tags$span(icon("folder-open"), "Browse..."))
           )
         )
       ),
-      
+
       tags$div(
         class = "card bg-light",
         style = "padding: 20px; margin-bottom: 25px;",
@@ -251,11 +249,11 @@ cards <- list(
           column(6, numericInput("ks_cores", tags$span(icon("microchip"), "Number of Cores:"), value = 4, min = 1))
         )
       ),
-      
+
       tags$div(
         style = "text-align: center; margin-top: 30px;",
-        actionButton("run_ks", 
-                    tags$span(icon("calculator"), "Run KS Analysis"), 
+        actionButton("run_ks",
+                    tags$span(icon("calculator"), "Run KS Analysis"),
                     class = "btn-lg",
                     style = "background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);"),
         tags$br(), tags$br(),
@@ -266,7 +264,7 @@ cards <- list(
       )
     )
   ),
-  
+
   "step2_results" = card(
     full_screen = TRUE,
     card_header(
@@ -275,7 +273,7 @@ cards <- list(
     ),
     DT::dataTableOutput("ks_results_table")
   ),
-  
+
   # Step 3: Feature Filtering & Clustering
   "step3_load" = card(
     full_screen = TRUE,
@@ -290,30 +288,30 @@ cards <- list(
         style = "background: #e8f5e9; border-left: 4px solid #4CAF50;",
         icon("info-circle"), " Upload the complete dataset containing all KS values with a 'Class' column (e.g., GlioCells_KSvaluesRab5WholeRef_V2.xlsx)."
       ),
-      
+
       tags$div(
         class = "card",
         style = "padding: 20px; margin: 20px 0; border: 2px solid #e3e6f0;",
         fluidRow(
           column(8,
-                 fileInput("clustering_input", 
+                 fileInput("clustering_input",
                           tags$span(icon("database"), "Complete KS Dataset (Excel/CSV):"),
                           accept = c(".xlsx", ".csv"),
                           placeholder = "GlioCells_KSvaluesRab5WholeRef_V2.xlsx",
                           buttonLabel = tags$span(icon("folder-open"), "Browse..."))
           ),
           column(4,
-                 numericInput("corr_threshold", 
+                 numericInput("corr_threshold",
                              tags$span(icon("percentage"), "Correlation Threshold:"),
                              value = 0.7, min = 0, max = 1, step = 0.05)
           )
         )
       ),
-      
+
       tags$div(
         style = "text-align: center; margin-top: 30px;",
-        actionButton("run_filtering", 
-                    tags$span(icon("filter"), "Load Data & Filter Features"), 
+        actionButton("run_filtering",
+                    tags$span(icon("filter"), "Load Data & Filter Features"),
                     class = "btn-lg",
                     style = "background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);"),
         tags$br(), tags$br(),
@@ -324,7 +322,7 @@ cards <- list(
       )
     )
   ),
-  
+
   "step3_correlation" = card(
     h4("Correlation Matrices"),
     fluidRow(
@@ -332,7 +330,7 @@ cards <- list(
       column(6, plotOutput("corr_filtered", height = "400px"))
     )
   ),
-  
+
   "step3_clustering" = card(
     h4("UMAP & Leiden Clustering Parameters"),
     p("Recommended: n_neighbors = 15, resolution = 0.42 for stable clustering."),
@@ -350,7 +348,7 @@ cards <- list(
       )
     )
   ),
-  
+
   # Step 4: Visualization
   "step4_stability" = card(
     h4("Clustering Stability"),
@@ -359,7 +357,7 @@ cards <- list(
       column(6, plotOutput("cluster_stability", height = "350px"))
     )
   ),
-  
+
   "step4_umap" = card(
     h4("UMAP Visualization"),
     p("Visualize the dataset in UMAP space colored by clusters, condition, or feature values."),
@@ -373,7 +371,7 @@ cards <- list(
       column(6, plotOutput("umap_feature", height = "400px"))
     )
   ),
-  
+
   "step4_proportions" = card(
     h4("Subpopulation Proportions"),
     fluidRow(
@@ -383,7 +381,7 @@ cards <- list(
       column(12, DT::dataTableOutput("proportions_table"))
     )
   ),
-  
+
   # Step 5: Statistical Analysis
   "step5_stats" = card(
     h4("Statistical Analysis"),
@@ -391,21 +389,21 @@ cards <- list(
       column(12, plotOutput("cluster_stats", height = "500px"))
     )
   ),
-  
+
   "step5_fingerprint" = card(
     h4("KS Cluster Fingerprint Heatmap"),
     fluidRow(
       column(12, plotOutput("fingerprint_heatmap", height = "500px"))
     )
   ),
-  
+
   "step5_importance" = card(
     h4("Feature Importance Analysis"),
     fluidRow(
       column(12, plotOutput("feature_importance", height = "500px"))
     )
   ),
-  
+
   "export" = card(
     card_header(
       style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;",
@@ -416,26 +414,26 @@ cards <- list(
       tags$p(style = "font-size: 1.1em; color: #555; margin-bottom: 40px;",
              icon("info-circle"), " Download your analysis results in various formats for further processing or publication."),
       fluidRow(
-        column(4, 
+        column(4,
                tags$div(
                  style = "padding: 20px;",
-                 downloadButton("download_filtered", 
+                 downloadButton("download_filtered",
                                tags$span(icon("table"), tags$br(), "Filtered Data"),
                                style = "background: #667eea; color: white; border: none; padding: 30px 20px; width: 100%; font-size: 1.1em; border-radius: 10px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);")
                )
         ),
-        column(4, 
+        column(4,
                tags$div(
                  style = "padding: 20px;",
-                 downloadButton("download_umap", 
+                 downloadButton("download_umap",
                                tags$span(icon("project-diagram"), tags$br(), "UMAP Results"),
                                style = "background: #f5576c; color: white; border: none; padding: 30px 20px; width: 100%; font-size: 1.1em; border-radius: 10px; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);")
                )
         ),
-        column(4, 
+        column(4,
                tags$div(
                  style = "padding: 20px;",
-                 downloadButton("download_stats", 
+                 downloadButton("download_stats",
                                tags$span(icon("chart-bar"), tags$br(), "Statistics"),
                                style = "background: #38f9d7; color: white; border: none; padding: 30px 20px; width: 100%; font-size: 1.1em; border-radius: 10px; box-shadow: 0 4px 15px rgba(56, 249, 215, 0.3);")
                )
@@ -465,26 +463,26 @@ ui <- page_navbar(
     style = "font-weight: 600; font-size: 1.3em;"
   ),
   nav_spacer(),
-  
+
   nav_panel(
     title = tags$span(icon("home"), "Home"),
     value = "home",
     fluidRow(column(width = 12, cards$home))
   ),
-  
+
   nav_panel(
     title = tags$span(icon("image"), "STEP 1: Feature Extraction"),
     value = "step1",
     fluidRow(column(width = 12, cards$step1_params))
   ),
-  
+
   nav_panel(
     title = tags$span(icon("chart-line"), "STEP 2: KS Analysis"),
     value = "step2",
     fluidRow(column(width = 12, cards$step2_params)),
     fluidRow(column(width = 12, cards$step2_results))
   ),
-  
+
   nav_panel(
     title = tags$span(icon("project-diagram"), "STEP 3: Clustering & Analysis"),
     value = "step3",
@@ -494,21 +492,21 @@ ui <- page_navbar(
     ),
     fluidRow(column(width = 12, cards$step3_load)),
     fluidRow(column(width = 12, cards$step3_correlation)),
-    
+
     tags$div(
       style = "background: linear-gradient(to right, #f093fb 0%, #f5576c 100%); padding: 15px; margin: 30px 0 20px 0; border-radius: 8px;",
       tags$h2(icon("sitemap"), "Clustering", style = "color: white; margin: 0;")
     ),
     fluidRow(column(width = 12, cards$step3_clustering)),
     fluidRow(column(width = 12, cards$step4_stability)),
-    
+
     tags$div(
       style = "background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%); padding: 15px; margin: 30px 0 20px 0; border-radius: 8px;",
       tags$h2(icon("eye"), "Visualization", style = "color: white; margin: 0;")
     ),
     fluidRow(column(width = 12, cards$step4_umap)),
     fluidRow(column(width = 12, cards$step4_proportions)),
-    
+
     tags$div(
       style = "background: linear-gradient(to right, #43e97b 0%, #38f9d7 100%); padding: 15px; margin: 30px 0 20px 0; border-radius: 8px;",
       tags$h2(icon("chart-bar"), "Statistical Analysis", style = "color: white; margin: 0;")
@@ -517,13 +515,13 @@ ui <- page_navbar(
     fluidRow(column(width = 12, cards$step5_fingerprint)),
     fluidRow(column(width = 12, cards$step5_importance))
   ),
-  
+
   nav_panel(
     title = tags$span(icon("download"), "Export Results"),
     value = "export",
     fluidRow(column(width = 12, cards$export))
   ),
-  
+
   nav_spacer(),
   nav_item(tags$a(
     icon("github"), "GitHub",

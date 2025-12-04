@@ -157,7 +157,7 @@ extract_features <- function(root_dir,
   # Find Python executable from virtualenv
   if (is.null(python_path)) {
     envname <- getOption("RabAnalyser.python.envname", "rabanalyser-venv")
-    python_path <- find_rabanalyser_python(envname = envname, create = TRUE)
+    python_path <- find_rabanalyser_python(envname = envname,update = F)
   }
 
   if (!file.exists(python_path)) {
