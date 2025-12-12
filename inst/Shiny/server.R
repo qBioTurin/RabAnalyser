@@ -103,13 +103,42 @@ server <- function(input, output, session) {
         comp_data <- readxl::read_excel(file_path)
       }
 
-      # Get all feature names (excluding first 2 columns which are typically IDs)
-      available_features <- colnames(comp_data)[-(1:2)]
+      # Get all feature names
+      available_features <- colnames(comp_data)
 
       # Update selectizeInput with available features
       updateSelectizeInput(session, "ks_selected_features",
                           choices = available_features,
                           selected = available_features)
+
+      # Display preview table
+      output$ks_preview_table <- DT::renderDataTable({
+        DT::datatable(head(comp_data), options = list(scrollX = TRUE, pageLength = 5))
+      })
+    }, error = function(e) {
+      # Silently fail if file can't be read
+      NULL
+    })
+  })
+
+  observe({
+    req(input$reference_file)
+
+    tryCatch({
+      # Load first comparison file to get available features
+      file_path <- input$reference_file$datapath[1]
+      file_name <- input$reference_file$name[1]
+
+      if (grepl("\\.csv$", file_name, ignore.case = TRUE)) {
+        ref_data <- readr::read_csv(file_path, show_col_types = FALSE)
+      } else {
+        ref_data <- readxl::read_excel(file_path)
+      }
+
+      # Display preview table
+      output$ref_preview_table <- DT::renderDataTable({
+        DT::datatable(head(ref_data), options = list(scrollX = TRUE, pageLength = 5))
+      })
     }, error = function(e) {
       # Silently fail if file can't be read
       NULL
@@ -144,12 +173,27 @@ server <- function(input, output, session) {
       ks_results_list <- list()
 
       for (i in seq_along(input$comparison_files$datapath)) {
-        comp_data <- readr::read_csv(input$comparison_files$datapath[i], show_col_types = FALSE)
-        # Use selected features from the selectizeInput, or all if none selected
+        if (grepl("\\.csv$", file_name, ignore.case = TRUE)) {
+          comp_data <- readr::read_csv(input$comparison_files$datapath[i], show_col_types = FALSE)
+        } else {
+          comp_data <- readxl::read_excel(input$comparison_files$datapath[i])
+        }
+
+        if(!"ID_image" %in% colnames(comp_data)) { comp_data$ID_image <- 1 }
+
+        # Rename cell label column if needed
+        if (input$id_column %in% colnames(reference_data)) {
+          comp_data <- comp_data %>% rename(Cell_label = !!sym(input$id_column))
+        }
+
+
+        # Use selected features from the selectizeInput
         if (!is.null(input$ks_selected_features) && length(input$ks_selected_features) > 0) {
           features <- input$ks_selected_features
+          if (input$id_column %in% features) { features = features[-which(input$id_column %in% features)] }
         } else {
-          features <- colnames(comp_data)[-(1:2)]
+          output$ks_status <- renderText("No features were selected!")
+          return()
         }
 
         ks_result <- RabAnalyser::perform_ks_analysis(

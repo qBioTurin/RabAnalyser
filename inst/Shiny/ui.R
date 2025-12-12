@@ -151,7 +151,7 @@ cards <- list(
         fluidRow(
           column(6,
                  shinyDirButton("input_folder", "Select Input Folder", "Choose folder",
-                               style = "background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px;")
+                                style = "background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 5px;")
           ),
           column(6,
                  verbatimTextOutput("input_folder_path")
@@ -186,9 +186,9 @@ cards <- list(
       tags$div(
         style = "text-align: center; margin-top: 30px;",
         actionButton("run_extraction",
-                    tags$span(icon("play-circle"), "Run Feature Extraction"),
-                    class = "btn-lg",
-                    style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);"),
+                     tags$span(icon("play-circle"), "Run Feature Extraction"),
+                     class = "btn-lg",
+                     style = "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);"),
         tags$br(), tags$br(),
         tags$div(
           textOutput("extraction_status"),
@@ -226,48 +226,77 @@ cards <- list(
         fluidRow(
           column(6,
                  fileInput("reference_file",
-                          tags$span(icon("database"), "Reference Population (CSV/Excel):"),
-                          accept = c(".xlsx", ".xls",".csv"),
-                          buttonLabel = tags$span(icon("folder-open"), "Browse..."))
+                           tags$span(icon("database"), "Reference Population (CSV/Excel):"),
+                           accept = c(".xlsx", ".xls",".csv"),
+                           buttonLabel = tags$span(icon("folder-open"), "Browse..."))
           ),
           column(6,
                  fileInput("comparison_files",
-                          tags$span(icon("database"), "Experimental Conditions (CSV/Excel):"),
-                          accept = c(".csv", ".xlsx", ".xls"),
-                          multiple = TRUE,
-                          buttonLabel = tags$span(icon("folder-open"), "Browse..."))
+                           tags$span(icon("database"), "Experimental Conditions (CSV/Excel):"),
+                           accept = c(".csv", ".xlsx", ".xls"),
+                           multiple = TRUE,
+                           buttonLabel = tags$span(icon("folder-open"), "Browse..."))
           )
         )
       ),
 
-      tags$div(
-        class = "card",
-        style = "padding: 20px; margin-bottom: 25px; border: 2px solid #e3e6f0;",
-        tags$h5(icon("star"), "Available Features for Analysis", style = "color: #f5576c; margin-bottom: 15px;"),
-        tags$p(style = "color: #888; font-size: 0.9em;", icon("info-circle"), " Features will appear after uploading files"),
-        selectizeInput("ks_selected_features",
-                      tags$span(icon("check-circle"), "Select features to use:"),
-                      choices = NULL,
-                      multiple = TRUE,
-                      options = list(placeholder = "Upload files to see available features"))
+      card(
+        full_screen = F,
+        card_header(
+          style = "background: linear-gradient(90deg, #f093fb 0%, #f5576c 100%); color: white;",
+          tags$h4(icon("eye"), "Data Preview", style = "margin: 0; font-weight: 600;")
+        ),
+        tags$div(
+          style = "padding: 20px;",
+          fluidRow(
+            column(6,
+                   tags$p(style = "color: #666; margin-bottom: 15px;", icon("info-circle"), "Preview of the reference file:"),
+                   DT::dataTableOutput("ref_preview_table")
+            ),
+            column(6,
+                   tags$p(style = "color: #666; margin-bottom: 15px;", icon("info-circle"), "Preview of the first uploaded experimental condition file:"),
+                   DT::dataTableOutput("ks_preview_table")
+            )
+          )
+        )
       ),
-
-      tags$div(
-        class = "card bg-light",
-        style = "padding: 20px; margin-bottom: 25px;",
-        tags$h5(icon("sliders-h"), "Analysis Parameters", style = "color: #f5576c; margin-bottom: 15px;"),
-        fluidRow(
-          column(6, textInput("id_column", tags$span(icon("tag"), "Cell Label Column Name:"), value = "Cell_label")),
-          column(6, numericInput("ks_cores", tags$span(icon("microchip"), "Number of Cores:"), value = 4, min = 1))
+      fluidRow(
+        column(6,
+               tags$div(
+                 class = "card",
+                 style = "padding: 20px; margin-bottom: 25px; border: 2px solid #e3e6f0;",
+                 fluidRow(
+                   column(6,
+                          tags$h5(icon("star"), "Available Features for Analysis", style = "color: #f5576c; margin-bottom: 15px;"),
+                          tags$p(style = "color: #888; font-size: 0.9em;", icon("info-circle"), " Features will appear after uploading files"),
+                          selectizeInput("ks_selected_features",
+                                         tags$span(icon("check-circle"), "Select features to use:"),
+                                         choices = NULL,
+                                         multiple = TRUE,
+                                         options = list(placeholder = "Upload files to see available features"))
+                   )
+                 )
+               )
+        ),
+        column(6,
+               tags$div(
+                 class = "card bg-light",
+                 style = "padding: 20px; margin-bottom: 25px;",
+                 tags$h5(icon("sliders-h"), "Analysis Parameters", style = "color: #f5576c; margin-bottom: 15px;"),
+                 fluidRow(
+                   column(6, textInput("id_column", tags$span(icon("tag"), "Cell Label Column Name:"), value = "Cell_label")),
+                   column(6, numericInput("ks_cores", tags$span(icon("microchip"), "Number of Cores:"), value = 4, min = 1))
+                 )
+               )
         )
       ),
 
       tags$div(
         style = "text-align: center; margin-top: 30px;",
         actionButton("run_ks",
-                    tags$span(icon("calculator"), "Run KS Analysis"),
-                    class = "btn-lg",
-                    style = "background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);"),
+                     tags$span(icon("calculator"), "Run KS Analysis"),
+                     class = "btn-lg",
+                     style = "background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.4);"),
         tags$br(), tags$br(),
         tags$div(
           textOutput("ks_status"),
@@ -307,15 +336,15 @@ cards <- list(
         fluidRow(
           column(8,
                  fileInput("clustering_input",
-                          tags$span(icon("database"), "Complete KS Dataset (Excel/CSV):"),
-                          accept = c(".xlsx", ".csv"),
-                          placeholder = "GlioCells_KSvaluesRab5WholeRef_V2.xlsx",
-                          buttonLabel = tags$span(icon("folder-open"), "Browse..."))
+                           tags$span(icon("database"), "Complete KS Dataset (Excel/CSV):"),
+                           accept = c(".xlsx", ".csv"),
+                           placeholder = "GlioCells_KSvaluesRab5WholeRef_V2.xlsx",
+                           buttonLabel = tags$span(icon("folder-open"), "Browse..."))
           ),
           column(4,
                  numericInput("corr_threshold",
-                             tags$span(icon("percentage"), "Correlation Threshold:"),
-                             value = 0.7, min = 0, max = 1, step = 0.05)
+                              tags$span(icon("percentage"), "Correlation Threshold:"),
+                              value = 0.7, min = 0, max = 1, step = 0.05)
           )
         )
       ),
@@ -323,9 +352,9 @@ cards <- list(
       tags$div(
         style = "text-align: center; margin-top: 30px;",
         actionButton("run_filtering",
-                    tags$span(icon("filter"), "Load Data & Filter Features"),
-                    class = "btn-lg",
-                    style = "background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);"),
+                     tags$span(icon("filter"), "Load Data & Filter Features"),
+                     class = "btn-lg",
+                     style = "background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; padding: 15px 40px; font-size: 1.1em; border-radius: 25px; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);"),
         tags$br(), tags$br(),
         tags$div(
           textOutput("filtering_status"),
@@ -430,24 +459,24 @@ cards <- list(
                tags$div(
                  style = "padding: 20px;",
                  downloadButton("download_filtered",
-                               tags$span(icon("table"), tags$br(), "Filtered Data"),
-                               style = "background: #667eea; color: white; border: none; padding: 30px 20px; width: 100%; font-size: 1.1em; border-radius: 10px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);")
+                                tags$span(icon("table"), tags$br(), "Filtered Data"),
+                                style = "background: #667eea; color: white; border: none; padding: 30px 20px; width: 100%; font-size: 1.1em; border-radius: 10px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);")
                )
         ),
         column(4,
                tags$div(
                  style = "padding: 20px;",
                  downloadButton("download_umap",
-                               tags$span(icon("project-diagram"), tags$br(), "UMAP Results"),
-                               style = "background: #f5576c; color: white; border: none; padding: 30px 20px; width: 100%; font-size: 1.1em; border-radius: 10px; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);")
+                                tags$span(icon("project-diagram"), tags$br(), "UMAP Results"),
+                                style = "background: #f5576c; color: white; border: none; padding: 30px 20px; width: 100%; font-size: 1.1em; border-radius: 10px; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);")
                )
         ),
         column(4,
                tags$div(
                  style = "padding: 20px;",
                  downloadButton("download_stats",
-                               tags$span(icon("chart-bar"), tags$br(), "Statistics"),
-                               style = "background: #38f9d7; color: white; border: none; padding: 30px 20px; width: 100%; font-size: 1.1em; border-radius: 10px; box-shadow: 0 4px 15px rgba(56, 249, 215, 0.3);")
+                                tags$span(icon("chart-bar"), tags$br(), "Statistics"),
+                                style = "background: #38f9d7; color: white; border: none; padding: 30px 20px; width: 100%; font-size: 1.1em; border-radius: 10px; box-shadow: 0 4px 15px rgba(56, 249, 215, 0.3);")
                )
         )
       )
@@ -492,6 +521,7 @@ ui <- page_navbar(
     title = tags$span(icon("chart-line"), "STEP 2: KS Analysis"),
     value = "step2",
     fluidRow(column(width = 12, cards$step2_params)),
+    #fluidRow(column(width = 12, cards$step2_preview)),
     fluidRow(column(width = 12, cards$step2_results))
   ),
 
