@@ -10,9 +10,10 @@ library(ggplot2)
 library(dplyr)
 library(bslib)
 library(writexl)
-
+library(shinybusy)
+library(tools)
 # Load RabAnalyser package
-library(RabAnalyser)
+#library(RabAnalyser)
 
 # Set maximum upload size to 1000 MB
 options(shiny.maxRequestSize = 1000 * 1024^2)
@@ -83,11 +84,11 @@ cards <- list(
           tags$p(strong(icon("info-circle"), "Description:"), "Identify a reference population and compare experimental conditions using the Kolmogorov-Smirnov (KS) statistic."),
           tags$div(
             style = "background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;",
-            tags$p(strong(icon("folder-open"), "INPUT:"), "Excel files containing extracted features (e.g., FPW1.xlsx, JK2.xlsx, WK1.xlsx) and a reference population file (e.g., Reference_populationRab5_V2.xlsx) - a concatenation of all experimental conditions.", style = "margin: 0;")
+            tags$p(strong(icon("folder-open"), "INPUT:"), "Excel files containing extracted features and a reference population file - a concatenation of all experimental conditions.", style = "margin: 0;")
           ),
           tags$div(
             style = "background: #e8f5e9; padding: 15px; border-radius: 5px; margin: 10px 0;",
-            tags$p(strong(icon("file-export"), "OUTPUT:"), "Excel files where each row is a single cell with KS values representing distributional dissimilarity (e.g., FPW1_KSRab5_WholeRef_V2.xlsx).", style = "margin: 0;")
+            tags$p(strong(icon("file-export"), "OUTPUT:"), "Excel files where each row is a single cell with KS values representing distributional dissimilarity.", style = "margin: 0;")
           )
         )
       ),
@@ -106,7 +107,7 @@ cards <- list(
           tags$p(strong(icon("info-circle"), "Description:"), "Perform data clustering and characterize identified clusters."),
           tags$div(
             style = "background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 10px 0;",
-            tags$p(strong(icon("folder-open"), "INPUT:"), "Complete dataset containing all KS values per feature and per condition (e.g., GlioCells_KSvaluesRab5WholeRef_V2.xlsx) with a 'Class' column.", style = "margin: 0;")
+            tags$p(strong(icon("folder-open"), "INPUT:"), "Complete dataset containing all KS values per feature and per condition with a 'Class' column.", style = "margin: 0;")
           ),
           tags$div(
             style = "background: #e8f5e9; padding: 15px; border-radius: 5px; margin: 10px 0;",
@@ -216,7 +217,7 @@ cards <- list(
       tags$div(
         class = "alert alert-info",
         style = "background: #e3f2fd; border-left: 4px solid #2196F3;",
-        icon("lightbulb"), strong(" Note:"), " The reference population file should be a concatenation of all experimental conditions (e.g., Reference_populationRab5_V2.xlsx)."
+        icon("lightbulb"), strong(" Note:"), " The reference population file should be a concatenation of all experimental conditions."
       ),
 
       tags$div(
@@ -327,7 +328,7 @@ cards <- list(
       tags$div(
         class = "alert alert-info",
         style = "background: #e8f5e9; border-left: 4px solid #4CAF50;",
-        icon("info-circle"), " Upload the complete dataset containing all KS values with a 'Class' column (e.g., GlioCells_KSvaluesRab5WholeRef_V2.xlsx)."
+        icon("info-circle"), " Upload the complete dataset containing all KS values with a 'Class' column."
       ),
 
       tags$div(
@@ -338,7 +339,6 @@ cards <- list(
                  fileInput("clustering_input",
                            tags$span(icon("database"), "Complete KS Dataset (Excel/CSV):"),
                            accept = c(".xlsx", ".csv"),
-                           placeholder = "GlioCells_KSvaluesRab5WholeRef_V2.xlsx",
                            buttonLabel = tags$span(icon("folder-open"), "Browse..."))
           ),
           column(4,
@@ -373,17 +373,35 @@ cards <- list(
   ),
 
   "step3_clustering" = card(
-    h4("UMAP & Leiden Clustering Parameters"),
-    p("Recommended: n_neighbors = 15, resolution = 0.42 for stable clustering."),
+    h4("Step 1: UMAP Embedding & Resolution Scan"),
+    p("First, run UMAP embedding and scan resolution parameters to find optimal gamma."),
     fluidRow(
       column(3, numericInput("n_neighbors", "N Neighbors (UMAP):", value = 15, min = 2)),
       column(3, numericInput("min_dist", "Min Distance (UMAP):", value = 0.1, min = 0, max = 1, step = 0.01)),
-      column(3, numericInput("resolution", "Resolution (Leiden):", value = 0.42, min = 0.1, max = 2, step = 0.01)),
-      column(3, numericInput("n_bootstrap", "N Bootstrap:", value = 100, min = 10))
+      column(3, numericInput("gamma_min", "Gamma Min:", value = 0.1, min = 0.01, max = 1, step = 0.01)),
+      column(3, numericInput("gamma_max", "Gamma Max:", value = 1.0, min = 0.1, max = 5, step = 0.1))
+    ),
+    fluidRow(
+      column(3, numericInput("n_gamma_steps", "N Gamma Steps:", value = 100, min = 10, max = 500)),
+      column(9,
+             actionButton("run_umap_scan", "Run UMAP & Resolution Scan", class = "btn-primary btn-lg"),
+             tags$br(), tags$br(),
+             textOutput("umap_scan_status")
+      )
+    )
+  ),
+
+  "step3_leiden" = card(
+    h4("Step 2: Leiden Clustering"),
+    p("After viewing the resolution scan plot, select gamma and run Leiden clustering."),
+    fluidRow(
+      column(4, numericInput("selected_gamma", "Selected Gamma (Resolution):", value = 0.42, min = 0.01, max = 5, step = 0.01)),
+      column(4, numericInput("n_bootstrap", "N Bootstrap:", value = 100, min = 10)),
+      column(4, numericInput("subsample_prop", "Subsample Proportion:", value = 0.8, min = 0.5, max = 1, step = 0.05))
     ),
     fluidRow(
       column(12,
-             actionButton("run_clustering", "Run UMAP & Leiden Clustering", class = "btn-primary btn-lg"),
+             actionButton("run_clustering", "Run Leiden Clustering", class = "btn-success btn-lg"),
              tags$br(), tags$br(),
              textOutput("clustering_status")
       )
@@ -392,31 +410,30 @@ cards <- list(
 
   # Step 4: Visualization
   "step4_stability" = card(
-    h4("Clustering Stability"),
+    h4("Clustering Choice"),
     fluidRow(
-      column(6, plotOutput("resolution_scan", height = "350px")),
-      column(6, plotOutput("cluster_stability", height = "350px"))
+      plotOutput("resolution_scan", height = "350px")
     )
   ),
 
   "step4_umap" = card(
     h4("UMAP Visualization"),
-    p("Visualize the dataset in UMAP space colored by clusters, condition, or feature values."),
     fluidRow(
-      column(4, selectInput("umap_color", "Color by:", choices = c("Cluster", "Class"))),
-      column(4, selectInput("feature_color", "Feature to display:", choices = NULL)),
-      column(4, checkboxInput("discrete_color", "Discrete colors", value = TRUE))
-    ),
-    fluidRow(
-      column(6, plotOutput("umap_plot", height = "400px")),
-      column(6, plotOutput("umap_feature", height = "400px"))
+      p("Visualize the dataset in UMAP space colored by condition or feature values."),
+      fluidRow(
+        column(4, selectInput("feature_color", "Color by:", choices = c("Class")))
+      ),
+      fluidRow(
+        plotOutput("feature_color", height = "400px")
+      )
     )
   ),
 
   "step4_proportions" = card(
     h4("Subpopulation Proportions"),
     fluidRow(
-      column(12, plotOutput("proportions_plot", height = "400px"))
+      column(6, plotOutput("proportions_plot", height = "400px")),
+      column(6, plotOutput("umap_plot", height = "400px"))
     ),
     fluidRow(
       column(12, DT::dataTableOutput("proportions_table"))
@@ -540,13 +557,14 @@ ui <- page_navbar(
       tags$h2(icon("sitemap"), "Clustering", style = "color: white; margin: 0;")
     ),
     fluidRow(column(width = 12, cards$step3_clustering)),
-    fluidRow(column(width = 12, cards$step4_stability)),
+    fluidRow(column(width = 6, cards$step4_stability),
+             column(width = 6, cards$step4_umap)),
+    fluidRow(column(width = 12, cards$step3_leiden)),
 
     tags$div(
       style = "background: linear-gradient(to right, #4facfe 0%, #00f2fe 100%); padding: 15px; margin: 30px 0 20px 0; border-radius: 8px;",
       tags$h2(icon("eye"), "Visualization", style = "color: white; margin: 0;")
     ),
-    fluidRow(column(width = 12, cards$step4_umap)),
     fluidRow(column(width = 12, cards$step4_proportions)),
 
     tags$div(

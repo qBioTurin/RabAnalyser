@@ -9,7 +9,6 @@ extract_features(
   min_spot_size = 8,
   neighbor_radius = 15,
   conditions = NULL,
-  python_path = NULL,
   nucleus_folder = "nucleus_mask",
   cell_folder = "cell_mask",
   rab_folder = "rab5",
@@ -29,9 +28,6 @@ Default is 15 pixels (considering typical endosome size ~500-1000 nm).}
 
 \item{conditions}{Character vector. Specific experimental conditions to process.
 If NULL, all folders in root_dir are processed. Default is NULL.}
-
-\item{python_path}{Character. Path to a Python executable to use. If NULL, uses the
-package's managed virtualenv. Default is NULL.}
 
 \item{nucleus_folder}{Character. Name of nucleus mask subfolder. Default "nucleus_mask".}
 

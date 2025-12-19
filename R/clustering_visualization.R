@@ -216,7 +216,7 @@ plot_clusters_proportions <- function(reduced_df,
       values_fill = 0
     )
 
-  condition_names <- setdiff(colnames(cluster_counts), clusters_col)
+  condition_names <- setdiff(colnames(cluster_counts), "Clusters")
   cluster_fractions <- cluster_counts
 
   for (cond in condition_names) {
@@ -235,9 +235,9 @@ plot_clusters_proportions <- function(reduced_df,
     geom_col(position = position_dodge(width = 0.8), width = 0.7) +
     scale_y_continuous(limits = c(0, 100)) +
     labs(
-      x = "Subpopulations",
+      x = "Clusters",
       y = "Cell proportion (%)",
-      title = "Comparison of Cell Fractions Across Conditions Per Subpopulation"
+      title = "Comparison of Cell Fractions Across Conditions Per Cluster"
     ) +
     theme_minimal() +
     theme(

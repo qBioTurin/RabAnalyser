@@ -21,8 +21,6 @@
 #'                        Default is 15 pixels (considering typical endosome size ~500-1000 nm).
 #' @param conditions Character vector. Specific experimental conditions to process.
 #'                   If NULL, all folders in root_dir are processed. Default is NULL.
-#' @param python_path Character. Path to a Python executable to use. If NULL, uses the
-#'                    package's managed virtualenv. Default is NULL.
 #' @param nucleus_folder Character. Name of nucleus mask subfolder. Default "nucleus_mask".
 #' @param cell_folder Character. Name of cell mask subfolder. Default "cell_mask".
 #' @param rab_folder Character. Name of Rab signal subfolder. Default "rab5".
@@ -101,7 +99,6 @@ extract_features <- function(root_dir,
                             min_spot_size = 8,
                             neighbor_radius = 15,
                             conditions = NULL,
-                            python_path = NULL,
                             nucleus_folder = "nucleus_mask",
                             cell_folder = "cell_mask",
                             rab_folder = "rab5",
@@ -115,7 +112,6 @@ extract_features <- function(root_dir,
       min_spot_size = min_spot_size,
       neighbor_radius = neighbor_radius,
       conditions = conditions,
-      python_path = python_path,
       nucleus_folder = nucleus_folder,
       cell_folder = cell_folder,
       rab_folder = rab_folder,
@@ -140,7 +136,6 @@ extract_features <- function(root_dir,
                                       min_spot_size = 8,
                                       neighbor_radius = 15,
                                       conditions = NULL,
-                                      python_path = NULL,
                                       nucleus_folder = "nucleus_mask",
                                       cell_folder = "cell_mask",
                                       rab_folder = "rab5",
@@ -154,15 +149,9 @@ extract_features <- function(root_dir,
     stop("Python script not found at: ", script_path)
   }
 
-  # Find Python executable from virtualenv
-  if (is.null(python_path)) {
-    envname <- getOption("RabAnalyser.python.envname", "rabanalyser-venv")
-    python_path <- find_rabanalyser_python(envname = envname,update = F)
-  }
-
-  if (!file.exists(python_path)) {
-    stop("Python executable not found at: ", python_path)
-  }
+  # Get Python executable from virtualenv
+  venv_python <- reticulate::virtualenv_python("rabanalyser-venv")
+  python_path <- setup_rabanalyser_venv()
 
   # Expand ~ and normalize the root_dir path for Python
   root_dir <- normalizePath(path.expand(root_dir), mustWork = FALSE)
@@ -192,8 +181,6 @@ extract_features <- function(root_dir,
   cat("  cell_folder:", cell_folder, "\n")
   cat("  rab_folder:", rab_folder, "\n")
   cat("  spot_folder:", spot_folder, "\n\n")
-
-  venv_python <- reticulate::virtualenv_python("rabanalyser-venv")
 
   # Use processx::run for synchronous execution with real-time output
   result <- tryCatch({

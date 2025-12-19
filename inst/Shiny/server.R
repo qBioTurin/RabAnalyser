@@ -10,7 +10,10 @@ server <- function(input, output, session) {
     umap_df = NULL,
     df_features = NULL,
     feature_names = NULL,
-    input_folder_selected = NULL
+    input_folder_selected = NULL,
+    umap_results = NULL,
+    resolution_scan = NULL,
+    graph_path = NULL
   )
 
   # ========== STEP 1: FEATURE EXTRACTION ==========
@@ -149,7 +152,7 @@ server <- function(input, output, session) {
     req(input$reference_file, input$comparison_files)
 
     output$ks_status <- renderText("Running KS analysis...")
-
+    shinybusy::show_modal_spinner() # show the modal window
     tryCatch({
       # Load reference population
 
@@ -182,7 +185,7 @@ server <- function(input, output, session) {
         if(!"ID_image" %in% colnames(comp_data)) { comp_data$ID_image <- 1 }
 
         # Rename cell label column if needed
-        if (input$id_column %in% colnames(reference_data)) {
+        if (input$id_column %in% colnames(comp_data)) {
           comp_data <- comp_data %>% rename(Cell_label = !!sym(input$id_column))
         }
 
@@ -203,20 +206,21 @@ server <- function(input, output, session) {
           cores = input$ks_cores
         )
 
-        ks_result$file_name <- input$comparison_files$name[i]
+        ks_result$Class <- tools::file_path_sans_ext(input$comparison_files$name[i])
         ks_results_list[[i]] <- ks_result
       }
 
       rv$ks_results <- bind_rows(ks_results_list)
 
-      output$ks_results_table <- DT::renderDataTable({
-        DT::datatable(rv$ks_results, options = list(scrollX = TRUE, pageLength = 10))
+      output$ks_results_table <- DT::renderDT({
+        DT::datatable(rv$ks_results, extensions = "Buttons", options = list(scrollX = TRUE, pageLength = 10,dom = "Bfrtip",buttons = c("copy", "csv", "excel", "pdf") ) )
       })
 
       output$ks_status <- renderText("KS analysis completed successfully!")
     }, error = function(e) {
       output$ks_status <- renderText(paste("Error:", e$message))
     })
+    shinybusy::remove_modal_spinner() # remove the modal window
   })
 
   # ========== STEP 3: FEATURE FILTERING ==========
@@ -241,7 +245,7 @@ server <- function(input, output, session) {
       )
 
       rv$filtered_data <- rv$corr_result$filtered_data
-      rv$feature_names <- colnames(rv$filtered_data)[colnames(rv$filtered_data) != "Class"]
+      rv$feature_names <- colnames(rv$filtered_data)
 
       # Plot original correlation matrix
       output$corr_original <- renderPlot({
@@ -271,38 +275,67 @@ server <- function(input, output, session) {
     })
   })
 
-  # ========== STEP 4: CLUSTERING ==========
+  # ========== STEP 4: UMAP + RESOLUTION SCAN ==========
 
-  observeEvent(input$run_clustering, {
+  observeEvent(input$run_umap_scan, {
     req(rv$filtered_data)
+    shinybusy::show_modal_spinner() # show the modal window
 
-    output$clustering_status <- renderText("Running UMAP and Leiden clustering...")
+    output$umap_scan_status <- renderText("Running UMAP embedding and resolution scan...")
 
     tryCatch({
-      # Save filtered data temporarily
-      temp_file <- tempfile(fileext = ".csv")
-      write.csv(rv$filtered_data, temp_file, row.names = FALSE)
-
-      # Run UMAP and Leiden clustering
-      rv$clustering_results <- RabAnalyser::run_umap_leiden(
-        data_path = temp_file,
+      # Run UMAP + resolution scan
+      rv$umap_results <- RabAnalyser::run_umap_resolution_scan(
+        data = rv$filtered_data,
         n_neighbors = input$n_neighbors,
         min_dist = input$min_dist,
-        resolution = input$resolution,
-        n_bootstrap = input$n_bootstrap
+        gamma_min = input$gamma_min,
+        gamma_max = input$gamma_max,
+        n_gamma_steps = input$n_gamma_steps,
+        save_graph = TRUE
       )
 
-      rv$umap_df <- rv$clustering_results$umap_df
+      rv$resolution_scan <- rv$umap_results$resolution_scan
+      rv$graph_path <- rv$umap_results$graph_path
 
-      # Create df_features for analysis
-      rv$df_features <- rv$filtered_data %>%
-        rename(Condition = Class) %>%
-        mutate(Clusters = rv$umap_df$Cluster)
+      # Store UMAP coordinates
+      rv$umap_df <- rv$umap_results$umap_df
 
       # Plot resolution scan
       output$resolution_scan <- renderPlot({
-        RabAnalyser::plot_resolution_scan(rv$clustering_results$resolution_scan)
+        RabAnalyser::plot_resolution_scan(rv$resolution_scan)
       })
+
+      output$umap_scan_status <- renderText("UMAP and resolution scan completed! Select gamma and run clustering.")
+    }, error = function(e) {
+      output$umap_scan_status <- renderText(paste("Error:", e$message))
+    })
+    shinybusy::remove_modal_spinner() # remove it when done
+  })
+
+  # ========== STEP 5: LEIDEN CLUSTERING ==========
+
+  observeEvent(input$run_clustering, {
+    req(rv$umap_results, rv$graph_path)
+    shinybusy::show_modal_spinner() # show the modal window
+    output$clustering_status <- renderText("Running Leiden clustering with selected gamma...")
+
+    tryCatch({
+
+      # Run Leiden clustering
+      rv$clustering_results <- RabAnalyser::run_leiden_clustering(
+        umap_data = rv$umap_results$umap_df,
+        graph_path = rv$graph_path,
+        gamma = input$selected_gamma,
+        n_bootstrap = input$n_bootstrap,
+        subsample_prop = input$subsample_prop,
+        stability_analysis = TRUE
+      )
+
+      rv$clustered_umap_df <- rv$clustering_results$umap_df
+      rv$df_clustered_features <- rv$filtered_data %>%
+        rename(Condition = Class) %>%
+        mutate(Clusters = rv$clustering_results$umap_df$Cluster)
 
       # Plot cluster stability
       output$cluster_stability <- renderPlot({
@@ -311,30 +344,27 @@ server <- function(input, output, session) {
 
       output$clustering_status <- renderText("Clustering completed successfully!")
 
-      # Clean up temp file
-      unlink(temp_file)
     }, error = function(e) {
       output$clustering_status <- renderText(paste("Error:", e$message))
     })
+    shinybusy::remove_modal_spinner() # show the modal window
   })
 
   # ========== STEP 4: VISUALIZATION ==========
 
   # UMAP plot by cluster or class
   output$umap_plot <- renderPlot({
-    req(rv$umap_df)
-
-    discrete <- input$umap_color %in% c("Cluster", "Class")
+    req(rv$clustered_umap_df)
 
     RabAnalyser::plot_umap(
-      rv$umap_df,
-      color_by = input$umap_color,
-      discrete = discrete
+      rv$clustered_umap_df,
+      color_by = "Cluster",
+      discrete = T
     )
   })
 
   # UMAP plot colored by feature
-  output$umap_feature <- renderPlot({
+  output$feature_color <- renderPlot({
     req(rv$umap_df, rv$filtered_data, input$feature_color)
 
     if (!is.null(input$feature_color) && input$feature_color != "") {
@@ -353,33 +383,36 @@ server <- function(input, output, session) {
   })
 
   # Subpopulation proportions
-  output$proportions_plot <- renderPlot({
-    req(rv$df_features)
+  observe({
+    req(rv$clustering_results)
+    df_features = rv$df_clustered_features
 
-    RabAnalyser::plot_clusters_proportions(rv$df_features)
+    output$proportions_plot <- renderPlot({
+      RabAnalyser::plot_clusters_proportions(df_features)
+    })
+
+    output$proportions_table <- DT::renderDataTable({
+      result <- RabAnalyser::analyze_subpopulation_proportions(df_features)
+      DT::datatable(result$pairwise_tests, options = list(scrollX = TRUE, pageLength = 10))
+    })
+
   })
 
-  output$proportions_table <- DT::renderDataTable({
-    req(rv$df_features)
-
-    result <- RabAnalyser::analyze_subpopulation_proportions(rv$df_features)
-    DT::datatable(result, options = list(scrollX = TRUE, pageLength = 10))
-  })
 
   # ========== STEP 5: STATISTICAL ANALYSIS ==========
 
   output$cluster_stats <- renderPlot({
-    req(rv$df_features)
+    req(rv$df_clustered_features)
 
-    stats_res <- RabAnalyser::cluster_feature_stats(rv$df_features)
+    stats_res <- RabAnalyser::cluster_feature_stats(rv$df_clustered_features)
     stats_res$plot
   })
 
   output$fingerprint_heatmap <- renderPlot({
-    req(rv$df_features)
+    req(rv$df_clustered_features)
 
     fingerprint_res <- RabAnalyser::ks_cluster_fingerprint_heatmap(
-      rv$df_features,
+      rv$df_clustered_features,
       values_interval = c(-0.3, 0.3),
       midpoint_val = 0
     )
@@ -387,10 +420,10 @@ server <- function(input, output, session) {
   })
 
   output$feature_importance <- renderPlot({
-    req(rv$df_features)
+    req(rv$df_clustered_features)
 
     importance_res <- RabAnalyser::feature_importance_analysis(
-      rv$df_features %>% select(-Condition)
+      rv$df_clustered_features %>% select(-Condition)
     )
     importance_res$plot
   })
